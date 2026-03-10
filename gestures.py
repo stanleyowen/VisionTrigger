@@ -22,7 +22,7 @@ from mediapipe.tasks.python import vision as mp_vision
 class GestureRecognizer:
     # Map of finger-state tuples → gesture name.
     # Tuple order: (thumb, index, middle, ring, pinky)  True = extended
-    _GESTURE_MAP: dict[tuple, str] = {
+    _BUILTIN_GESTURE_MAP: dict[tuple, str] = {
         (False, True,  False, False, False): "POINT",
         (False, True,  True,  False, False): "PEACE",
         (True,  True,  True,  True,  True): "OPEN_PALM",
@@ -38,7 +38,21 @@ class GestureRecognizer:
         model_path: str,
         min_detection_confidence: float = 0.7,
         min_tracking_confidence: float = 0.5,
+        custom_gestures: dict | None = None,
     ):
+        # Start with built-ins; custom gestures overlay (and can override) them.
+        self._gesture_map: dict[tuple, str] = dict(self._BUILTIN_GESTURE_MAP)
+        if custom_gestures:
+            for name, fingers in custom_gestures.items():
+                if len(fingers) != 5:
+                    raise ValueError(
+                        f"Custom gesture '{name}': 'fingers' must have exactly "
+                        f"5 boolean values [thumb, index, middle, ring, pinky], "
+                        f"got {len(fingers)}."
+                    )
+                key = tuple(bool(f) for f in fingers)
+                self._gesture_map[key] = name
+
         options = mp_vision.HandLandmarkerOptions(
             base_options=mp_tasks.BaseOptions(model_asset_path=model_path),
             running_mode=mp_vision.RunningMode.VIDEO,
@@ -85,7 +99,7 @@ class GestureRecognizer:
             else:
                 return "THUMBS_DOWN"
 
-        return self._GESTURE_MAP.get(tuple(states), "UNKNOWN")
+        return self._gesture_map.get(tuple(states), "UNKNOWN")
 
     def draw_landmarks(self, bgr_frame, landmark_list) -> None:
         """Overlay hand skeleton onto a BGR frame (in-place)."""
@@ -94,6 +108,10 @@ class GestureRecognizer:
             landmark_list,
             self._connections,
         )
+
+    def finger_states(self, landmarks, handedness_label: str) -> tuple:
+        """Return (thumb, index, middle, ring, pinky) True if each finger is extended."""
+        return tuple(self._finger_states(landmarks, handedness_label))
 
     def close(self) -> None:
         self._landmarker.close()

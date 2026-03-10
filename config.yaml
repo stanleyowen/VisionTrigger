@@ -1,93 +1,74 @@
-# VisionTrigger – Gesture → macOS Action Mapping
-# -----------------------------------------------
-# Each gesture entry has:
-#   action    : "shortcut" | "applescript" | "shell"
-#   label     : display name shown on screen (optional, auto-derived if omitted)
-#   cooldown  : seconds to wait before the same gesture can fire again
-#
-# Action-specific keys:
-#   shortcut    → name    : exact name of your Shortcut in the Shortcuts app
-#   applescript → script  : inline AppleScript (single line or multi-line block)
-#   shell       → command : bash/zsh command string
-
 gestures:
-  # 👍  Thumb up – Volume Up
   THUMBS_UP:
     action: applescript
-    script: "set volume output volume (output volume of (get volume settings) + 10)"
-    label: "Volume Up"
+    script: set volume output volume (output volume of (get volume settings) + 10)
+    label: Volume Up
     cooldown: 0.8
-
-  # 👎  Thumb down – Volume Down
   THUMBS_DOWN:
     action: applescript
-    script: "set volume output volume (output volume of (get volume settings) - 10)"
-    label: "Volume Down"
+    script: set volume output volume (output volume of (get volume settings) - 10)
+    label: Volume Down
     cooldown: 0.8
-
-  # 🖐  Open palm – Take Screenshot (saved to Desktop)
   OPEN_PALM:
     action: shell
-    command: >
-      screencapture -x
-      ~/Desktop/VisionTrigger_$(date +%Y%m%d_%H%M%S).png &&
-      afplay /System/Library/Sounds/Glass.aiff
-    label: "Screenshot"
-    cooldown: 3.0
+    command: 'screencapture -x ~/Desktop/VisionTrigger_$(date +%Y%m%d_%H%M%S).png
+      && afplay /System/Library/Sounds/Glass.aiff
 
-  # ✌️  Peace / V-sign – Open Spotlight
+      '
+    label: Screenshot
+    cooldown: 3.0
   PEACE:
     action: applescript
-    script: 'tell application "System Events" to keystroke " " using {command down}'
-    label: "Open Spotlight"
+    script: tell application "System Events" to keystroke " " using {command down}
+    label: Open Spotlight
     cooldown: 2.0
-
-  # 👊  Fist – Lock Screen
   FIST:
     action: shell
-    command: "pmset displaysleepnow"
-    label: "Lock Screen"
+    command: pmset displaysleepnow
+    label: Lock Screen
     cooldown: 3.0
-
-  # ☝️  Point (index only) – Open Finder
   POINT:
     action: shell
-    command: "open -a Finder"
-    label: "Open Finder"
+    command: open -a Finder
+    label: Open Finder
     cooldown: 2.0
-
-  # 🤘  Rock (horns) – Open Terminal
   ROCK:
     action: shell
-    command: "open -a Terminal"
-    label: "Open Terminal"
+    command: open -a Terminal
+    label: Open Terminal
     cooldown: 3.0
-
-  # 🤙  Call (thumb + pinky) – Run a macOS Shortcut
-  # Replace "My Shortcut" with the exact name of your Shortcut.
   CALL:
     action: shortcut
-    name: "My Shortcut"
-    label: "Run Shortcut"
+    name: My Shortcut
+    label: Run Shortcut
     cooldown: 2.0
-
-  # THREE / FOUR are left unmapped by default – add your own actions below:
-  # THREE:
-  #   action: shell
-  #   command: "open -a 'Music'"
-  #   label: "Open Music"
-  #   cooldown: 2.0
-
-  # FOUR:
-  #   action: shell
-  #   command: "open -a 'Safari'"
-  #   label: "Open Safari"
-  #   cooldown: 2.0
-
+custom_gestures:
+  HELLOWORLD:
+    fingers:
+    - false
+    - false
+    - false
+    - false
+    - false
+    action: applescript
+    label: Helloworld
+    cooldown: 2.0
+    script: asdasdasdasdasd
+  TEST:
+    fingers:
+    - false
+    - false
+    - false
+    - false
+    - true
+    action: shortcut
+    label: Test
+    cooldown: 2.0
+    name: hello
 settings:
-  camera_index: 0 # 0 = built-in FaceTime camera; set to 1+ for external
+  camera_index: 0
   detection_confidence: 0.7
   tracking_confidence: 0.5
-  gesture_hold_frames: 20 # consecutive frames a gesture must be held to trigger
-  show_landmarks: true # draw MediaPipe skeleton on the video feed
+  gesture_hold_frames: 20
+  show_landmarks: true
   show_fps: true

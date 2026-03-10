@@ -124,6 +124,71 @@ Increasing `gesture_hold_frames` reduces accidental triggers; decreasing it make
 
 ---
 
+## Custom gestures
+
+You can define entirely new gestures in `config.yaml` under the `custom_gestures` key. Each custom gesture requires:
+
+| Field      | Required | Description                                                                  |
+| ---------- | -------- | ---------------------------------------------------------------------------- |
+| `fingers`  | Yes      | List of 5 booleans `[thumb, index, middle, ring, pinky]` — `true` = extended |
+| `action`   | Yes      | `shortcut`, `applescript`, or `shell`                                        |
+| `label`    | No       | Display name shown on screen                                                 |
+| `cooldown` | No       | Seconds before the gesture can fire again (default `2.0`)                    |
+
+### Finger map
+
+```
+[thumb, index, middle, ring, pinky]
+```
+
+For example, `[false, true, false, true, false]` means index + ring fingers extended.
+
+> **Note:** The pattern `[true, false, false, false, false]` (thumb only) is reserved for
+> `THUMBS_UP` / `THUMBS_DOWN`, which are direction-sensitive. Avoid it in custom gestures.
+> Custom gestures override built-in ones when their finger pattern conflicts.
+
+### Examples
+
+**Open Music with index + ring:**
+
+```yaml
+custom_gestures:
+  MUSIC:
+    fingers: [false, true, false, true, false]
+    action: shell
+    command: "open -a Music"
+    label: "Open Music"
+    cooldown: 2.0
+```
+
+**Run a macOS Shortcut with a unique 4-finger pattern:**
+
+```yaml
+custom_gestures:
+  FOCUS:
+    fingers: [true, true, true, true, false]
+    action: shortcut
+    name: "Focus Mode"
+    label: "Focus Mode"
+    cooldown: 2.0
+```
+
+**Show a notification with middle + ring:**
+
+```yaml
+custom_gestures:
+  NOTIFY:
+    fingers: [false, false, true, true, false]
+    action: applescript
+    script: 'display notification "Hello from VisionTrigger!"'
+    label: "Notify"
+    cooldown: 3.0
+```
+
+You can add as many custom gestures as you like, as long as each has a unique finger pattern.
+
+---
+
 ## Project structure
 
 ```
