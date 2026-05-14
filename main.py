@@ -20,6 +20,7 @@ import urllib.request
 from pathlib import Path
 
 import cv2
+import numpy as np
 import yaml
 
 from gestures import GestureRecognizer
@@ -245,8 +246,8 @@ def draw_overlay(
              scale=1.2, color=_GREEN, thickness=3)
 
     # ── hint ───────────────────────────────────────────────────────────────
-    _put(frame, "q/Esc = quit   l = landmarks   g = gestures (e=edit  d=delete)   r = register",
-         (10, h - 34), scale=0.45, color=_GREY, thickness=1)
+    _put(frame, "q/Esc = quit   l = landmarks   g = gestures (e=edit  d=delete)   r = register   c = camera",
+         (10, h - 34), scale=0.43, color=_GREY, thickness=1)
 
 
 def _finger_display_str(fingers: tuple) -> str:
@@ -508,6 +509,70 @@ def draw_file_pick_overlay(
 
 
 # ---------------------------------------------------------------------------
+# Camera selector UI
+# ---------------------------------------------------------------------------
+
+def draw_camera_selector(
+    frame,
+    cam_names: list[str],
+    cursor: int,
+    availability: dict,
+    has_active: bool,
+) -> None:
+    h, w = frame.shape[:2]
+
+    # Dark overlay (works over a live frame or a black frame)
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (0, 0), (w, h), _BLACK, -1)
+    cv2.addWeighted(overlay, 0.80, frame, 0.20, 0, frame)
+
+    _put(frame, "SELECT CAMERA", (w // 2 - 140, 72), scale=0.95, color=_ORANGE)
+
+    bottom_hint = "Esc = cancel" if has_active else "q / Esc = quit"
+    _put(frame, "j / k = navigate    Enter = open    r = rescan",
+         (w // 2 - 215, h - 56), scale=0.50, color=_GREY, thickness=1)
+    _put(frame, bottom_hint, (w // 2 - 75, h - 30),
+         scale=0.50, color=_GREY, thickness=1)
+
+    if not cam_names:
+        _put(frame, "No cameras detected.",
+             (w // 2 - 160, h // 2 - 16), color=_YELLOW)
+        _put(frame, "Connect a camera, then press  r  to rescan.",
+             (w // 2 - 230, h // 2 + 26), scale=0.58, color=_GREY, thickness=1)
+        return
+
+    row_h = 52
+    total_h = len(cam_names) * row_h
+    start_y = max(130, h // 2 - total_h // 2)
+
+    for idx, name in enumerate(cam_names):
+        y = start_y + idx * row_h
+        selected = idx == cursor
+        avail = availability.get(idx)      # True / False / None (unknown)
+
+        bg = (30, 30, 55) if selected else (18, 18, 18)
+        cv2.rectangle(frame,
+                      (w // 2 - 300, y - 24), (w // 2 + 300, y + 18),
+                      bg, -1)
+        if selected:
+            cv2.rectangle(frame,
+                          (w // 2 - 300, y - 24), (w // 2 + 300, y + 18),
+                          _CYAN, 1)
+
+        name_color = _CYAN if selected else _WHITE
+        prefix = "▶  " if selected else "   "
+        _put(frame, f"{prefix}{idx}:  {name}",
+             (w // 2 - 288, y), scale=0.68, color=name_color)
+
+        if avail is True:
+            _put(frame, "● available",
+                 (w // 2 + 140, y), scale=0.52, color=_GREEN, thickness=1)
+        elif avail is False:
+            _put(frame, "○ unavailable",
+                 (w // 2 + 140, y), scale=0.52, color=_GREY, thickness=1)
+
+
+# ---------------------------------------------------------------------------
 # Camera detection
 # ---------------------------------------------------------------------------
 
@@ -641,13 +706,37 @@ def main():
     start_time = time.monotonic()
 
     cam_idx = settings.get("camera_index", 0)
-    cap, cam_idx, cam_name = find_camera(preferred=cam_idx)
-    if cap is None:
-        logger.error("No working camera found (probed indices 0‥5)")
-        return
+    cap, cam_idx, cam_name = find_camera(preferred=cam_idx, retries=1)
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    if cap is not None:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+
+    # ── Camera selector state ──────────────────────────────────────────────
+    all_cam_names: list[str] = _macos_camera_names()
+    cam_select_mode: bool = cap is None
+    cam_select_cursor: int = max(0, cam_idx)
+    cam_availability: dict[int, bool] = {}
+
+    def rescan_cameras() -> None:
+        nonlocal all_cam_names, cam_availability
+        all_cam_names = _macos_camera_names()
+        cam_availability = {}
+        active = cam_idx if cap is not None else -1
+        for i in range(len(all_cam_names)):
+            if i == active:
+                cam_availability[i] = True
+            else:
+                test = _open_index(i)
+                if test:
+                    cam_availability[i] = True
+                    test.release()
+                else:
+                    cam_availability[i] = False
+
+    if cam_select_mode:
+        logger.info("No camera found – opening camera selector.")
+        rescan_cameras()
 
     hold_required: int = settings.get("gesture_hold_frames", 20)
     show_landmarks: bool = settings.get("show_landmarks", True)
@@ -687,138 +776,190 @@ def main():
         "Press  q / Esc  to quit,  l  to toggle landmarks,  r  to register a gesture.")
 
     while True:
-        ret, frame = cap.read()
-        if not ret:
-            logger.error("Failed to read frame from camera")
-            break
-
-        frame = cv2.flip(frame, 1)                       # mirror view
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        timestamp_ms = int((time.monotonic() - start_time) * 1000)
-        results = recognizer.process(rgb, timestamp_ms)
+        # ── Frame acquisition ──────────────────────────────────────────────
+        if cam_select_mode or cap is None:
+            frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+        else:
+            ret, frame = cap.read()
+            if not ret:
+                logger.warning("Camera %d lost – opening camera selector.", cam_idx)
+                cap.release()
+                cap = None
+                cam_select_mode = True
+                hold_counts.clear()
+                rescan_cameras()
+                frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+            else:
+                frame = cv2.flip(frame, 1)
 
         current_gesture = "NONE"
         hold_progress = 0.0
         action_label = ""
 
-        if results.hand_landmarks and results.handedness:
-            # list[NormalizedLandmark]
-            hand_lm = results.hand_landmarks[0]
-            # "Right" or "Left"
-            handedness = results.handedness[0][0].category_name
+        # ── Gesture processing (only when a camera is live) ────────────────
+        if not cam_select_mode and cap is not None:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            timestamp_ms = int((time.monotonic() - start_time) * 1000)
+            results = recognizer.process(rgb, timestamp_ms)
 
-            if show_landmarks:
-                recognizer.draw_landmarks(frame, hand_lm)
+            if results.hand_landmarks and results.handedness:
+                hand_lm = results.hand_landmarks[0]
+                handedness = results.handedness[0][0].category_name
 
-            current_gesture = recognizer.classify(hand_lm, handedness)
-            action_label = display_label(current_gesture, gesture_cfgs)
+                if show_landmarks:
+                    recognizer.draw_landmarks(frame, hand_lm)
 
-            # ── Registration capture ─────────────────────────────────────
-            if reg_state == REG_CAPTURE:
-                fingers = recognizer.finger_states(hand_lm, handedness)
-                if fingers == reg_prev_fingers:
-                    reg_stable_count += 1
-                else:
+                current_gesture = recognizer.classify(hand_lm, handedness)
+                action_label = display_label(current_gesture, gesture_cfgs)
+
+                # ── Registration capture ─────────────────────────────────
+                if reg_state == REG_CAPTURE:
+                    fingers = recognizer.finger_states(hand_lm, handedness)
+                    if fingers == reg_prev_fingers:
+                        reg_stable_count += 1
+                    else:
+                        reg_stable_count = 0
+                        reg_prev_fingers = fingers
+                    reg_current_fingers = fingers
+                    if reg_stable_count >= REG_STABLE_REQUIRED:
+                        reg_fingers = fingers
+                        reg_stable_count = 0
+                        reg_prev_fingers = None
+                        reg_input_buf = ""
+                        reg_state = REG_NAME
+
+                # ── Normal action triggering ─────────────────────────────
+                elif reg_state == REG_IDLE:
+                    if current_gesture not in ("NONE", "UNKNOWN"):
+                        for g in list(hold_counts):
+                            if g != current_gesture:
+                                hold_counts.pop(g)
+
+                        hold_counts[current_gesture] = hold_counts.get(
+                            current_gesture, 0) + 1
+                        hold_progress = min(
+                            hold_counts[current_gesture] / hold_required, 1.0)
+
+                        if hold_counts[current_gesture] >= hold_required:
+                            g_cfg = gesture_cfgs.get(current_gesture, {})
+                            cooldown = g_cfg.get("cooldown", 2.0)
+                            now = time.time()
+
+                            if g_cfg and now - last_trigger_ts.get(current_gesture, 0.0) >= cooldown:
+                                last_trigger_ts[current_gesture] = now
+                                hold_counts[current_gesture] = 0
+                                flash_gesture = current_gesture
+                                flash_ts = now
+                                logger.info("Triggered: %s → %s",
+                                            current_gesture, action_label)
+
+                                threading.Thread(
+                                    target=trigger.execute,
+                                    args=(g_cfg,),
+                                    daemon=True,
+                                ).start()
+                    else:
+                        hold_counts.clear()
+            else:
+                hold_counts.clear()
+                if reg_state == REG_CAPTURE:
                     reg_stable_count = 0
-                    reg_prev_fingers = fingers
-                reg_current_fingers = fingers
-                if reg_stable_count >= REG_STABLE_REQUIRED:
-                    reg_fingers = fingers
-                    reg_stable_count = 0
-                    reg_prev_fingers = None
-                    reg_input_buf = ""
-                    reg_state = REG_NAME
-
-            # ── Normal action triggering (only in idle mode) ─────────────
-            elif reg_state == REG_IDLE:
-                if current_gesture not in ("NONE", "UNKNOWN"):
-                    for g in list(hold_counts):
-                        if g != current_gesture:
-                            hold_counts.pop(g)
-
-                    hold_counts[current_gesture] = hold_counts.get(
-                        current_gesture, 0) + 1
-                    hold_progress = min(
-                        hold_counts[current_gesture] / hold_required, 1.0)
-
-                    if hold_counts[current_gesture] >= hold_required:
-                        g_cfg = gesture_cfgs.get(current_gesture, {})
-                        cooldown = g_cfg.get("cooldown", 2.0)
-                        now = time.time()
-
-                        if g_cfg and now - last_trigger_ts.get(current_gesture, 0.0) >= cooldown:
-                            last_trigger_ts[current_gesture] = now
-                            hold_counts[current_gesture] = 0
-                            flash_gesture = current_gesture
-                            flash_ts = now
-                            logger.info("Triggered: %s → %s",
-                                        current_gesture, action_label)
-
-                            threading.Thread(
-                                target=trigger.execute,
-                                args=(g_cfg,),
-                                daemon=True,
-                            ).start()
-                else:
-                    hold_counts.clear()
-        else:
-            # No hand visible – clear all hold counts
-            hold_counts.clear()
-            if reg_state == REG_CAPTURE:
-                reg_stable_count = 0
-                reg_current_fingers = None
+                    reg_current_fingers = None
 
         # ── FPS ────────────────────────────────────────────────────────────
-        fps_frame_cnt += 1
-        if fps_frame_cnt >= 30:
-            fps = fps_frame_cnt / (time.time() - fps_tick)
-            fps_tick = time.time()
-            fps_frame_cnt = 0
+        if not cam_select_mode:
+            fps_frame_cnt += 1
+            if fps_frame_cnt >= 30:
+                fps = fps_frame_cnt / (time.time() - fps_tick)
+                fps_tick = time.time()
+                fps_frame_cnt = 0
 
         flash_active = bool(flash_gesture) and (time.time() - flash_ts < 1.0)
 
-        draw_overlay(
-            frame,
-            current_gesture,
-            action_label,
-            fps,
-            hold_progress,
-            flash_active,
-            show_fps,
-        )
-
-        if reg_state not in (REG_IDLE, REG_FILE_PICK, REG_DELETE_CONFIRM):
-            draw_registration_overlay(
+        # ── Drawing ────────────────────────────────────────────────────────
+        if cam_select_mode:
+            draw_camera_selector(
+                frame, all_cam_names, cam_select_cursor,
+                cam_availability, cap is not None,
+            )
+        else:
+            draw_overlay(
                 frame,
-                reg_state,
-                reg_input_buf,
-                reg_fingers,
-                reg_name,
-                reg_action_type,
-                reg_action_detail,
-                reg_stable_count,
-                reg_current_fingers,
-                reg_selected_filename,
-                reg_is_edit,
+                current_gesture,
+                action_label,
+                fps,
+                hold_progress,
+                flash_active,
+                show_fps,
             )
 
-        if reg_state == REG_FILE_PICK:
-            draw_file_pick_overlay(
-                frame, reg_action_type, reg_file_list, reg_file_cursor)
+            if reg_state not in (REG_IDLE, REG_FILE_PICK, REG_DELETE_CONFIRM):
+                draw_registration_overlay(
+                    frame,
+                    reg_state,
+                    reg_input_buf,
+                    reg_fingers,
+                    reg_name,
+                    reg_action_type,
+                    reg_action_detail,
+                    reg_stable_count,
+                    reg_current_fingers,
+                    reg_selected_filename,
+                    reg_is_edit,
+                )
 
-        if reg_state == REG_DELETE_CONFIRM:
-            draw_delete_confirm_overlay(frame, reg_name)
+            if reg_state == REG_FILE_PICK:
+                draw_file_pick_overlay(
+                    frame, reg_action_type, reg_file_list, reg_file_cursor)
 
-        if show_gestures and reg_state == REG_IDLE:
-            draw_gestures_list_overlay(
-                frame, gesture_cfgs, gesture_list_cursor)
+            if reg_state == REG_DELETE_CONFIRM:
+                draw_delete_confirm_overlay(frame, reg_name)
+
+            if show_gestures and reg_state == REG_IDLE:
+                draw_gestures_list_overlay(
+                    frame, gesture_cfgs, gesture_list_cursor)
 
         cv2.imshow("VisionTrigger", frame)
 
         key = cv2.waitKey(1) & 0xFF
 
+        # ── Camera selector key handling ───────────────────────────────────
+        if cam_select_mode:
+            if key in (ord("q"), 27):
+                if cap is not None:          # cancel → back to live view
+                    cam_select_mode = False
+                else:
+                    break                    # no camera at all → quit
+            elif key == ord("j"):
+                cam_select_cursor = min(cam_select_cursor + 1,
+                                        max(0, len(all_cam_names) - 1))
+            elif key == ord("k"):
+                cam_select_cursor = max(cam_select_cursor - 1, 0)
+            elif key == ord("r"):
+                rescan_cameras()
+                logger.info("Camera list rescanned.")
+            elif key == 13 and all_cam_names:   # Enter – open selected
+                new_cap = _open_index(cam_select_cursor)
+                if new_cap:
+                    if cap is not None:
+                        cap.release()
+                    cap = new_cap
+                    cam_idx = cam_select_cursor
+                    cam_name = (all_cam_names[cam_select_cursor]
+                                if cam_select_cursor < len(all_cam_names)
+                                else f"Camera {cam_select_cursor}")
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                    cam_select_mode = False
+                    fps_frame_cnt = 0
+                    fps_tick = time.time()
+                    logger.info("Switched to camera %d: %s", cam_idx, cam_name)
+                else:
+                    cam_availability[cam_select_cursor] = False
+                    logger.warning("Camera %d could not be opened.", cam_select_cursor)
+
         # ── Registration key handling ──────────────────────────────────────
-        if reg_state != REG_IDLE:
+        elif reg_state != REG_IDLE:
             if key == 27:   # Esc → cancel
                 reg_state = REG_IDLE
                 reg_input_buf = ""
@@ -955,6 +1096,10 @@ def main():
         else:
             if key in (ord("q"), 27):   # q or Esc
                 break
+            if key == ord("c"):         # open camera selector
+                rescan_cameras()
+                cam_select_mode = True
+                logger.info("Camera selector opened.")
             if key == ord("l"):
                 show_landmarks = not show_landmarks
                 logger.info("Landmarks: %s", "ON" if show_landmarks else "OFF")
@@ -1007,7 +1152,8 @@ def main():
                 logger.info(
                     "Gesture registration started. Hold your gesture steady.")
 
-    cap.release()
+    if cap is not None:
+        cap.release()
     cv2.destroyAllWindows()
     recognizer.close()
     logger.info("VisionTrigger stopped.")
