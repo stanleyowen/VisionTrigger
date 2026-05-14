@@ -65,6 +65,495 @@ custom_gestures:
     label: Test
     cooldown: 2.0
     name: hello
+voice_commands:
+  # ─── Apps ────────────────────────────────────────────────────────────
+  OPEN_APP:
+    phrases:
+      - open {app}
+      - launch {app}
+      - start {app}
+    action: shell
+    command: 'open -a "{app}"'
+    label: Open App
+    cooldown: 1.0
+  SWITCH_TO_APP:
+    phrases:
+      - switch to {app}
+      - bring up {app}
+      - go to {app}
+    action: applescript
+    script: 'tell application "{app}" to activate'
+    label: Switch To App
+    cooldown: 1.0
+  QUIT_APP:
+    phrases:
+      - quit {app}
+      - close {app} app
+      - exit {app}
+    action: applescript
+    script: 'tell application "{app}" to quit'
+    label: Quit App
+    cooldown: 1.0
+  HIDE_FRONT_APP:
+    phrases:
+      - hide this app
+      - hide front app
+      - hide the front app
+    action: applescript
+    script: 'tell application "System Events" to keystroke "h" using {command down}'
+    label: Hide Front App
+    cooldown: 1.0
+
+  # ─── System power ────────────────────────────────────────────────────
+  LOCK_SCREEN:
+    phrases:
+      - lock the screen
+      - lock screen
+      - lock my mac
+      - lock the mac
+    action: shell
+    command: pmset displaysleepnow
+    label: Lock Screen
+    cooldown: 3.0
+  SLEEP_MAC:
+    phrases:
+      - go to sleep
+      - sleep the computer
+      - sleep the mac
+      - put the mac to sleep
+    action: shell
+    command: pmset sleepnow
+    label: Sleep Mac
+    cooldown: 5.0
+  EMPTY_TRASH:
+    phrases:
+      - empty the trash
+      - empty trash
+    action: applescript
+    script: 'tell application "Finder" to empty the trash'
+    label: Empty Trash
+    cooldown: 3.0
+
+  # ─── Volume ──────────────────────────────────────────────────────────
+  VOLUME_UP:
+    phrases:
+      - volume up
+      - turn up the volume
+      - turn it up
+      - louder
+      - increase the volume
+    action: applescript
+    script: set volume output volume (output volume of (get volume settings) + 10)
+    label: Volume Up
+    cooldown: 0.5
+  VOLUME_DOWN:
+    phrases:
+      - volume down
+      - turn down the volume
+      - turn it down
+      - quieter
+      - decrease the volume
+    action: applescript
+    script: set volume output volume (output volume of (get volume settings) - 10)
+    label: Volume Down
+    cooldown: 0.5
+  MUTE:
+    phrases:
+      - mute
+      - mute the volume
+      - be quiet
+      - silence
+    action: applescript
+    script: set volume with output muted
+    label: Mute
+    cooldown: 1.0
+  UNMUTE:
+    phrases:
+      - unmute
+      - unmute the volume
+    action: applescript
+    script: set volume without output muted
+    label: Unmute
+    cooldown: 1.0
+  SET_VOLUME:
+    phrases:
+      - set volume to {level} percent
+      - set the volume to {level} percent
+      - set volume to {level}
+      - set the volume to {level}
+      - change volume to {level}
+    action: applescript
+    script: set volume output volume {level}
+    label: Set Volume
+    cooldown: 0.5
+  MAX_VOLUME:
+    phrases:
+      - max volume
+      - maximum volume
+      - full volume
+    action: applescript
+    script: set volume output volume 100
+    label: Max Volume
+    cooldown: 1.0
+
+  # ─── Display / UI ────────────────────────────────────────────────────
+  TOGGLE_DARK_MODE:
+    phrases:
+      - toggle dark mode
+      - switch dark mode
+      - switch appearance
+    action: applescript
+    script: tell application "System Events" to tell appearance preferences to set dark mode to not dark mode
+    label: Toggle Dark Mode
+    cooldown: 2.0
+  DARK_MODE_ON:
+    phrases:
+      - turn on dark mode
+      - enable dark mode
+      - dark mode on
+    action: applescript
+    script: tell application "System Events" to tell appearance preferences to set dark mode to true
+    label: Dark Mode On
+    cooldown: 2.0
+  DARK_MODE_OFF:
+    phrases:
+      - turn off dark mode
+      - disable dark mode
+      - light mode
+      - dark mode off
+    action: applescript
+    script: tell application "System Events" to tell appearance preferences to set dark mode to false
+    label: Light Mode
+    cooldown: 2.0
+  SHOW_DESKTOP:
+    phrases:
+      - show desktop
+      - show the desktop
+      - hide all windows
+    action: applescript
+    script: tell application "System Events" to key code 103
+    label: Show Desktop
+    cooldown: 1.0
+  MISSION_CONTROL:
+    phrases:
+      - show mission control
+      - mission control
+      - show all windows
+    action: shell
+    command: open -a 'Mission Control'
+    label: Mission Control
+    cooldown: 2.0
+  OPEN_SPOTLIGHT:
+    phrases:
+      - open spotlight
+      - open search
+      - spotlight
+    action: applescript
+    script: 'tell application "System Events" to keystroke " " using {command down}'
+    label: Spotlight
+    cooldown: 1.0
+
+  # ─── Media playback (Music.app) ──────────────────────────────────────
+  PLAY_PAUSE_MUSIC:
+    phrases:
+      - play music
+      - pause music
+      - play pause
+      - resume music
+      - toggle music
+    action: applescript
+    script: tell application "Music" to playpause
+    label: Play/Pause Music
+    cooldown: 0.5
+  NEXT_TRACK:
+    phrases:
+      - next song
+      - next track
+      - skip song
+      - skip this song
+    action: applescript
+    script: tell application "Music" to next track
+    label: Next Track
+    cooldown: 0.5
+  PREV_TRACK:
+    phrases:
+      - previous song
+      - previous track
+      - last song
+      - go back a song
+    action: applescript
+    script: tell application "Music" to previous track
+    label: Previous Track
+    cooldown: 0.5
+
+  # ─── Window management ──────────────────────────────────────────────
+  MINIMIZE_WINDOW:
+    phrases:
+      - minimize window
+      - minimize the window
+      - minimize this window
+    action: applescript
+    script: 'tell application "System Events" to keystroke "m" using {command down}'
+    label: Minimize Window
+    cooldown: 0.5
+  CLOSE_WINDOW:
+    phrases:
+      - close this window
+      - close window
+      - close the window
+      - close this tab
+    action: applescript
+    script: 'tell application "System Events" to keystroke "w" using {command down}'
+    label: Close Window
+    cooldown: 0.5
+  NEW_TAB:
+    phrases:
+      - new tab
+      - open a new tab
+    action: applescript
+    script: 'tell application "System Events" to keystroke "t" using {command down}'
+    label: New Tab
+    cooldown: 0.5
+  NEW_WINDOW:
+    phrases:
+      - new window
+      - open a new window
+    action: applescript
+    script: 'tell application "System Events" to keystroke "n" using {command down}'
+    label: New Window
+    cooldown: 0.5
+  SWITCH_APP:
+    phrases:
+      - switch app
+      - switch to next app
+      - next app
+    action: applescript
+    script: tell application "System Events" to keystroke tab using {command down}
+    label: Switch App
+    cooldown: 0.5
+
+  # ─── Screenshots ────────────────────────────────────────────────────
+  TAKE_SCREENSHOT:
+    phrases:
+      - take a screenshot
+      - take screenshot
+      - capture screen
+      - screenshot
+    action: shell
+    command: 'screencapture -x ~/Desktop/VisionTrigger_$(date +%Y%m%d_%H%M%S).png && afplay /System/Library/Sounds/Glass.aiff'
+    label: Screenshot
+    cooldown: 2.0
+  SCREENSHOT_AREA:
+    phrases:
+      - screenshot an area
+      - screenshot a region
+      - select area screenshot
+      - capture a region
+    action: shell
+    command: 'screencapture -i ~/Desktop/VisionTrigger_Area_$(date +%Y%m%d_%H%M%S).png'
+    label: Screenshot Area
+    cooldown: 2.0
+  SCREENSHOT_WINDOW:
+    phrases:
+      - screenshot the window
+      - screenshot this window
+      - capture the window
+    action: shell
+    command: 'screencapture -iW ~/Desktop/VisionTrigger_Window_$(date +%Y%m%d_%H%M%S).png'
+    label: Screenshot Window
+    cooldown: 2.0
+
+  # ─── Timers ─────────────────────────────────────────────────────────
+  SET_TIMER_HOURS:
+    phrases:
+      - set a timer for {hours} hours
+      - set a timer for {hours} hour
+      - timer for {hours} hours
+    action: shell
+    command: '( sleep $(( {hours} * 3600 )) && osascript -e ''display notification "Time is up after {hours} hour(s)" with title "VisionTrigger Timer" sound name "Glass"'' ) </dev/null >/dev/null 2>&1 &'
+    label: Set Timer (hour)
+    cooldown: 1.0
+  SET_TIMER_MINUTES:
+    phrases:
+      - set a timer for {minutes} minutes
+      - set a timer for {minutes} minute
+      - set timer for {minutes} minutes
+      - timer for {minutes} minutes
+      - start a {minutes} minute timer
+    action: shell
+    command: '( sleep $(( {minutes} * 60 )) && osascript -e ''display notification "Time is up after {minutes} minutes" with title "VisionTrigger Timer" sound name "Glass"'' ) </dev/null >/dev/null 2>&1 &'
+    label: Set Timer (min)
+    cooldown: 1.0
+  SET_TIMER_SECONDS:
+    phrases:
+      - set a timer for {seconds} seconds
+      - timer for {seconds} seconds
+    action: shell
+    command: '( sleep {seconds} && osascript -e ''display notification "Time is up after {seconds} seconds" with title "VisionTrigger Timer" sound name "Glass"'' ) </dev/null >/dev/null 2>&1 &'
+    label: Set Timer (sec)
+    cooldown: 1.0
+  SET_ALARM:
+    phrases:
+      - set an alarm for {time}
+      - wake me up at {time}
+      - alarm at {time}
+    action: shell
+    command: 'echo "osascript -e ''display notification \"Alarm\" with title \"VisionTrigger Alarm\" sound name \"Glass\"''; afplay /System/Library/Sounds/Glass.aiff" | at {time} 2>&1 | logger -t VisionTrigger'
+    label: Set Alarm
+    cooldown: 1.0
+
+  # ─── Productivity ───────────────────────────────────────────────────
+  CREATE_NOTE:
+    phrases:
+      - create a note
+      - new note
+      - take a note
+    action: applescript
+    script: |
+      tell application "Notes"
+        activate
+        make new note with properties {name:"VisionTrigger Note", body:""}
+      end tell
+    label: Create Note
+    cooldown: 2.0
+  CREATE_NOTE_WITH:
+    phrases:
+      - create a note that says {text}
+      - take a note that says {text}
+      - note that {text}
+    action: applescript
+    script: |
+      tell application "Notes"
+        make new note with properties {name:"VisionTrigger Note", body:"{text}"}
+      end tell
+    label: Create Note
+    cooldown: 2.0
+  CREATE_REMINDER:
+    phrases:
+      - remind me to {task}
+      - create a reminder to {task}
+      - add a reminder to {task}
+    action: applescript
+    script: |
+      tell application "Reminders"
+        make new reminder with properties {name:"{task}"}
+      end tell
+    label: Create Reminder
+    cooldown: 2.0
+  OPEN_CALENDAR:
+    phrases:
+      - open calendar
+      - show my calendar
+      - what is on my calendar
+      - show the calendar
+    action: shell
+    command: open -a Calendar
+    label: Open Calendar
+    cooldown: 2.0
+  COMPOSE_EMAIL:
+    phrases:
+      - compose email
+      - new email
+      - write an email
+      - send an email
+    action: applescript
+    script: |
+      tell application "Mail"
+        activate
+        make new outgoing message with properties {visible:true}
+      end tell
+    label: Compose Email
+    cooldown: 2.0
+  OPEN_MESSAGES:
+    phrases:
+      - open messages
+      - check messages
+      - new message
+    action: shell
+    command: open -a Messages
+    label: Open Messages
+    cooldown: 2.0
+
+  # ─── Information ────────────────────────────────────────────────────
+  WHAT_TIME:
+    phrases:
+      - what time is it
+      - what is the time
+      - tell me the time
+    action: shell
+    command: 'osascript -e "say \"The time is $(date ''+%-I:%M %p'')\""'
+    label: Speak Time
+    cooldown: 2.0
+  WHAT_DATE:
+    phrases:
+      - what is the date
+      - what is today's date
+      - what day is it
+      - what is today
+    action: shell
+    command: 'osascript -e "say \"Today is $(date ''+%A, %B %-d, %Y'')\""'
+    label: Speak Date
+    cooldown: 2.0
+  BATTERY_STATUS:
+    phrases:
+      - battery status
+      - how much battery
+      - what is my battery
+      - check battery
+      - what is the battery level
+    action: shell
+    command: 'pct=$(pmset -g batt | grep -Eo "[0-9]+%" | head -1); osascript -e "say \"Battery is at $pct\""'
+    label: Battery Status
+    cooldown: 2.0
+  WIFI_STATUS:
+    phrases:
+      - what is my wifi
+      - check wifi
+      - which network am I on
+    action: shell
+    command: 'net=$(networksetup -getairportnetwork en0 2>/dev/null | sed "s/Current Wi-Fi Network: //"); osascript -e "say \"You are on $net\""'
+    label: Wi-Fi Status
+    cooldown: 2.0
+
+  # ─── Web ────────────────────────────────────────────────────────────
+  SEARCH_WEB:
+    phrases:
+      - search for {query}
+      - google {query}
+      - search the web for {query}
+      - search google for {query}
+    action: shell
+    command: 'open "https://www.google.com/search?q={query}"'
+    label: Web Search
+    cooldown: 2.0
+  PLAY_YOUTUBE:
+    phrases:
+      - play {query} on youtube
+      - find {query} on youtube
+      - search youtube for {query}
+    action: shell
+    command: 'open "https://www.youtube.com/results?search_query={query}"'
+    label: YouTube Search
+    cooldown: 2.0
+  OPEN_URL:
+    phrases:
+      - open website {url}
+      - go to {url}
+    action: shell
+    command: 'open "https://{url}"'
+    label: Open URL
+    cooldown: 2.0
+
+  # ─── Shortcuts integration ──────────────────────────────────────────
+  RUN_SHORTCUT:
+    phrases:
+      - run shortcut {shortcut}
+      - run the shortcut {shortcut}
+      - execute shortcut {shortcut}
+    action: shortcut
+    name: '{shortcut}'
+    label: Run Shortcut
+    cooldown: 1.0
 settings:
   camera_index: 0
   detection_confidence: 0.7
@@ -72,3 +561,9 @@ settings:
   gesture_hold_frames: 20
   show_landmarks: true
   show_fps: true
+  voice:
+    enabled: false
+    wake_word: hey vision
+    language: en
+    model: base.en
+    silence_threshold: 0.01

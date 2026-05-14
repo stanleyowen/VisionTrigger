@@ -9,10 +9,12 @@ Controls:
   l       – toggle landmark overlay
   g       – show/hide gesture list
   r       – register a new gesture from camera
+  v       – toggle voice command listener
 """
 
 import json
 import logging
+import shutil
 import subprocess
 import threading
 import time
@@ -25,6 +27,7 @@ import yaml
 
 from gestures import GestureRecognizer
 from mac_trigger import MacTrigger
+from voice import VoiceListener
 
 logging.basicConfig(
     level=logging.INFO,
@@ -192,6 +195,112 @@ def _get_script_files(action_type: str) -> list:
 
 
 # ---------------------------------------------------------------------------
+# File-upload helpers  (no tkinter – uses osascript + folder watcher)
+# ---------------------------------------------------------------------------
+
+def _browse_and_copy(action_type: str) -> list:
+    """
+    Open a native macOS file-chooser via osascript; copy chosen scripts
+    into SCRIPTS_DIR; return the list of copied Path objects.
+    No tkinter or extra dependencies required.
+    """
+    if action_type == "applescript":
+        ext_filter = '{"applescript"}'
+    else:
+        ext_filter = '{"sh", "bash", "zsh", "command"}'
+
+    script = "\n".join([
+        f'set chosen to (choose file with prompt "Select {action_type} files"'
+        f' of type {ext_filter} with multiple selections allowed)',
+        'set out to ""',
+        'repeat with f in chosen',
+        '  set out to out & (POSIX path of f) & "\\n"',
+        'end repeat',
+        'return out',
+    ])
+    try:
+        result = subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True, text=True, timeout=120,
+        )
+    except Exception as exc:
+        logger.error("Browse dialog error: %s", exc)
+        return []
+
+    if result.returncode != 0:
+        return []   # user cancelled – not an error
+
+    valid = _SCRIPT_EXTS.get(action_type, set())
+    copied: list = []
+    for line in result.stdout.splitlines():
+        p = Path(line.strip())
+        if p.suffix.lower() in valid and p.exists():
+            dest = SCRIPTS_DIR / p.name
+            try:
+                shutil.copy2(p, dest)
+                copied.append(dest)
+                logger.info("Copied '%s' → scripts/", p.name)
+            except Exception as exc:
+                logger.error("Cannot copy %s: %s", p.name, exc)
+    return copied
+
+
+def _open_scripts_folder() -> None:
+    """Reveal the scripts/ directory in macOS Finder."""
+    subprocess.Popen(["open", str(SCRIPTS_DIR)])
+
+
+class _FolderWatcher:
+    """
+    Polls the scripts/ directory in a background thread.
+    When new matching files appear (dragged in via Finder), poll() returns them.
+    No tkinter or extra dependencies required.
+    """
+
+    def __init__(self, action_type: str):
+        self.action_type = action_type
+        self._new_files: list = []
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        valid = _SCRIPT_EXTS.get(action_type, set())
+        try:
+            self._seen: set = {
+                f for f in SCRIPTS_DIR.iterdir()
+                if f.is_file() and f.suffix.lower() in valid
+            }
+        except Exception:
+            self._seen = set()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self) -> None:
+        valid = _SCRIPT_EXTS.get(self.action_type, set())
+        while not self._stop.wait(0.5):
+            try:
+                current = {
+                    f for f in SCRIPTS_DIR.iterdir()
+                    if f.is_file() and f.suffix.lower() in valid
+                }
+                new = current - self._seen
+                if new:
+                    with self._lock:
+                        self._new_files.extend(new)
+                    self._seen = current
+            except Exception:
+                pass
+
+    def poll(self) -> list:
+        """Return any files added since the last call."""
+        with self._lock:
+            files = self._new_files[:]
+            self._new_files.clear()
+        return files
+
+    def close(self) -> None:
+        self._stop.set()
+
+
+# ---------------------------------------------------------------------------
 # Drawing
 # ---------------------------------------------------------------------------
 
@@ -229,9 +338,9 @@ def draw_overlay(
         _put(frame, f"Action:  {action_label}",
              (w - 310, 32), scale=0.65, color=_YELLOW)
 
-    # ── hold-progress bar (bottom) ─────────────────────────────────────────
+    # ── hold-progress bar (above button bar) ──────────────────────────────
     if hold_progress > 0.0:
-        bx1, by1, bx2, by2 = 10, h - 22, w - 10, h - 6
+        bx1, by1, bx2, by2 = 10, h - 56, w - 10, h - 52
         cv2.rectangle(frame, (bx1, by1), (bx2, by2), (40, 40, 40), -1)
         fill_w = int((bx2 - bx1) * hold_progress)
         cv2.rectangle(frame, (bx1, by1), (bx1 + fill_w, by2), _CYAN, -1)
@@ -245,10 +354,6 @@ def draw_overlay(
         _put(frame, f"✓ {label}", (w // 2 - 120, h // 2 + 10),
              scale=1.2, color=_GREEN, thickness=3)
 
-    # ── hint ───────────────────────────────────────────────────────────────
-    _put(frame, "q/Esc = quit   l = landmarks   g = gestures (e=edit  d=delete)   r = register   c = camera",
-         (10, h - 34), scale=0.43, color=_GREY, thickness=1)
-
 
 def _finger_display_str(fingers: tuple) -> str:
     """Format a 5-bool finger tuple as a compact readable string."""
@@ -256,14 +361,20 @@ def _finger_display_str(fingers: tuple) -> str:
     return "  ".join(f"{l}:{'Y' if v else 'N'}" for l, v in zip(labels, fingers))
 
 
-def draw_gestures_list_overlay(frame, gesture_cfgs: dict, cursor: int = -1) -> None:
-    """Draw a semi-transparent panel listing all configured gestures."""
+def draw_gestures_list_overlay(
+    frame,
+    gesture_cfgs: dict,
+    cursor: int = -1,
+    mouse_pos: tuple = (0, 0),
+) -> dict:
+    """Draw gesture list panel; return {key: rect} of clickable elements."""
     h, w = frame.shape[:2]
+    rects: dict = {}
     rows = list(gesture_cfgs.items())
-    row_h = 26
-    padding = 16
+    row_h    = 26
+    padding  = 16
     header_h = 36
-    footer_h = 28
+    footer_h = 50          # extra space for buttons
     max_visible = min(len(rows), (h - 120) // row_h)
     panel_h = header_h + max_visible * row_h + padding + footer_h
     panel_w = 580
@@ -279,12 +390,16 @@ def draw_gestures_list_overlay(frame, gesture_cfgs: dict, cursor: int = -1) -> N
 
     lx = px1 + 14
     y = py1 + 24
-    _put(frame, f"GESTURES  ({len(gesture_cfgs)})  —  press g to close",
-         (lx, y), scale=0.58, color=_CYAN)
+    _put(frame, f"GESTURES  ({len(gesture_cfgs)})", (lx, y), scale=0.58, color=_CYAN)
+
+    # Close button (top-right of panel)
+    close_rect = (px2 - 72, py1 + 6, px2 - 6, py1 + 28)
+    draw_button(frame, close_rect, "Close", mouse_pos)
+    rects["close"] = close_rect
+
     y += header_h - 6
     cv2.line(frame, (px1 + 8, y - 6), (px2 - 8, y - 6), _GREY, 1)
 
-    # Scroll so the selected row is always visible
     scroll_top = 0
     if cursor >= 0:
         scroll_top = max(0, min(cursor - max_visible // 2,
@@ -294,38 +409,47 @@ def draw_gestures_list_overlay(frame, gesture_cfgs: dict, cursor: int = -1) -> N
         name, cfg = rows[list_idx]
         if not isinstance(cfg, dict):
             continue
-        label = cfg.get("label") or name
+        label  = cfg.get("label") or name
         action = cfg.get("action", "?")
-        detail = (
-            cfg.get("command") or cfg.get("script") or cfg.get("name") or ""
-        )
+        detail = cfg.get("command") or cfg.get("script") or cfg.get("name") or ""
         detail_short = detail[:28] + ("…" if len(detail) > 28 else "")
         action_color = {
-            "shell": _GREEN,
-            "applescript": _YELLOW,
-            "shortcut": _CYAN,
+            "shell": _GREEN, "applescript": _YELLOW, "shortcut": _CYAN,
         }.get(action, _WHITE)
         is_selected = (list_idx == cursor)
+        row_rect = (px1 + 4, y - 18, px2 - 4, y + 8)
+        rects[f"row_{list_idx}"] = row_rect
+
+        hovered = _hit(row_rect, mouse_pos)
+        if is_selected:
+            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8), (40, 40, 60), -1)
+        elif hovered:
+            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8), (30, 30, 46), -1)
+
         row_color = _CYAN if is_selected else _WHITE
         prefix = "▶  " if is_selected else "   "
-        if is_selected:
-            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8),
-                          (40, 40, 60), -1)
         _put(frame, f"{prefix}{label}", (lx, y), scale=0.60, color=row_color)
-        tag = f"[{action}]"
-        _put(frame, tag, (lx + 190, y), scale=0.52, color=action_color)
-        _put(frame, detail_short, (lx + 280, y),
-             scale=0.47, color=_GREY, thickness=1)
+        _put(frame, f"[{action}]", (lx + 190, y), scale=0.52, color=action_color)
+        _put(frame, detail_short, (lx + 280, y), scale=0.47, color=_GREY, thickness=1)
         y += row_h
 
     if len(rows) > max_visible:
         _put(frame,
-             f"  … {len(rows)} total  (showing {scroll_top + 1}–{min(scroll_top + max_visible, len(rows))})",
+             f"  … {len(rows)} total  ({scroll_top+1}–{min(scroll_top+max_visible, len(rows))})",
              (lx, y + 4), scale=0.44, color=_GREY, thickness=1)
-        y += footer_h - 4
+        y += footer_h - 28
     cv2.line(frame, (px1 + 8, y + 2), (px2 - 8, y + 2), _GREY, 1)
-    _put(frame, "j/k = navigate    e = edit action    d = delete",
-         (lx, y + 18), scale=0.48, color=_GREY, thickness=1)
+
+    # Edit / Delete buttons
+    btn_y1, btn_y2 = y + 10, y + 36
+    edit_rect = (lx,       btn_y1, lx + 72,  btn_y2)
+    del_rect  = (lx + 80,  btn_y1, lx + 158, btn_y2)
+    draw_button(frame, edit_rect, "Edit",   mouse_pos)
+    draw_button(frame, del_rect,  "Delete", mouse_pos, danger=True)
+    rects["edit"]   = edit_rect
+    rects["delete"] = del_rect
+
+    return rects
 
 
 def draw_registration_overlay(
@@ -340,10 +464,13 @@ def draw_registration_overlay(
     current_fingers,
     reg_selected_filename: str = "",
     reg_is_edit: bool = False,
-) -> None:
+    mouse_pos: tuple = (0, 0),
+) -> dict:
+    """Draw registration overlay; return {key: rect} of clickable elements."""
     h, w = frame.shape[:2]
+    rects: dict = {}
     px1, py1 = w // 2 - 310, h // 2 - 140
-    px2, py2 = w // 2 + 310, h // 2 + 155
+    px2, py2 = w // 2 + 310, h // 2 + 165
     panel = frame.copy()
     cv2.rectangle(panel, (px1, py1), (px2, py2), (15, 15, 15), -1)
     cv2.addWeighted(panel, 0.82, frame, 0.18, 0, frame)
@@ -352,8 +479,11 @@ def draw_registration_overlay(
     lx, y = px1 + 18, py1 + 30
     title = "EDIT GESTURE" if reg_is_edit else "REGISTER GESTURE"
     _put(frame, title, (lx, y), scale=0.75, color=_ORANGE)
-    _put(frame, "Esc to cancel", (px2 - 168, y), scale=0.48,
-         color=_GREY, thickness=1)
+
+    # Cancel button (always visible, top-right)
+    cancel_rect = (px2 - 86, py1 + 8, px2 - 8, py1 + 32)
+    draw_button(frame, cancel_rect, "Cancel", mouse_pos)
+    rects["cancel"] = cancel_rect
     y += 38
 
     if reg_state == REG_CAPTURE:
@@ -387,15 +517,23 @@ def draw_registration_overlay(
         _put(frame, f"Name: {reg_name}", (lx, y), color=_GREEN)
         y += 36
         _put(frame, "Choose action type:", (lx, y))
-        y += 32
-        _put(frame, "  S   Shell script       (pick .sh file from scripts/)",
-             (lx, y), scale=0.58)
-        y += 28
-        _put(frame, "  A   AppleScript        (pick .applescript file from scripts/)",
-             (lx, y), scale=0.58)
-        y += 28
-        _put(frame, "  K   Shortcut           (type Shortcuts.app name)",
-             (lx, y), scale=0.58)
+        y += 36
+        # Clickable action-type buttons
+        shell_rect = (lx,       y, lx + 140, y + 34)
+        apple_rect = (lx + 152, y, lx + 310, y + 34)
+        short_rect = (lx + 322, y, lx + 470, y + 34)
+        draw_button(frame, shell_rect, "Shell (.sh)",   mouse_pos)
+        draw_button(frame, apple_rect, "AppleScript",   mouse_pos)
+        draw_button(frame, short_rect, "Shortcut",      mouse_pos)
+        rects["shell"]       = shell_rect
+        rects["applescript"] = apple_rect
+        rects["shortcut"]    = short_rect
+        y += 44
+        _put(frame, "Shell/AppleScript: pick a file from scripts/",
+             (lx, y), scale=0.46, color=_GREY, thickness=1)
+        y += 22
+        _put(frame, "Shortcut: type the Shortcuts.app name",
+             (lx, y), scale=0.46, color=_GREY, thickness=1)
 
     elif reg_state == REG_ACTION_DETAIL:
         _put(frame, f"{reg_name}  [{reg_action_type}]", (lx, y), color=_GREEN)
@@ -417,22 +555,30 @@ def draw_registration_overlay(
              f"Pattern: {_finger_display_str(reg_fingers) if reg_fingers else '?'}",
              (lx, y), scale=0.55)
         y += 28
-        if reg_selected_filename:
-            preview = reg_selected_filename
-        else:
-            preview = reg_action_detail[:42] + \
-                ("..." if len(reg_action_detail) > 42 else "")
-        _put(
-            frame, f"Action:  [{reg_action_type}]  {preview}", (lx, y), scale=0.55)
-        y += 38
-        _put(frame, "Y  Save        N  Cancel", (lx, y), color=_YELLOW)
+        preview = reg_selected_filename or (
+            reg_action_detail[:42] + ("..." if len(reg_action_detail) > 42 else ""))
+        _put(frame, f"Action:  [{reg_action_type}]  {preview}", (lx, y), scale=0.55)
+        y += 42
+        save_rect   = (lx,       y, lx + 90,  y + 34)
+        cancel2_rect = (lx + 102, y, lx + 200, y + 34)
+        draw_button(frame, save_rect,    "Save",   mouse_pos, active=True)
+        draw_button(frame, cancel2_rect, "Cancel", mouse_pos)
+        rects["save"]    = save_rect
+        rects["cancel2"] = cancel2_rect
+
+    return rects
 
 
-def draw_delete_confirm_overlay(frame, gesture_name: str) -> None:
-    """Draw a small confirmation panel for gesture deletion."""
+def draw_delete_confirm_overlay(
+    frame,
+    gesture_name: str,
+    mouse_pos: tuple = (0, 0),
+) -> dict:
+    """Draw deletion confirmation; return {key: rect} of clickable elements."""
     h, w = frame.shape[:2]
-    px1, py1 = w // 2 - 250, h // 2 - 80
-    px2, py2 = w // 2 + 250, h // 2 + 90
+    rects: dict = {}
+    px1, py1 = w // 2 - 250, h // 2 - 90
+    px2, py2 = w // 2 + 250, h // 2 + 100
     panel = frame.copy()
     cv2.rectangle(panel, (px1, py1), (px2, py2), (15, 15, 15), -1)
     cv2.addWeighted(panel, 0.85, frame, 0.15, 0, frame)
@@ -445,8 +591,14 @@ def draw_delete_confirm_overlay(frame, gesture_name: str) -> None:
     y += 34
     _put(frame, "This cannot be undone.", (lx, y), scale=0.52,
          color=_YELLOW, thickness=1)
-    y += 34
-    _put(frame, "Y  Delete        N / Esc  Cancel", (lx, y), color=(0, 80, 255))
+    y += 38
+    del_rect    = (lx,       y, lx + 120, y + 34)
+    cancel_rect = (lx + 132, y, lx + 240, y + 34)
+    draw_button(frame, del_rect,    "Yes, Delete", mouse_pos, danger=True)
+    draw_button(frame, cancel_rect, "Cancel",      mouse_pos)
+    rects["delete"] = del_rect
+    rects["cancel"] = cancel_rect
+    return rects
 
 
 def draw_file_pick_overlay(
@@ -454,58 +606,207 @@ def draw_file_pick_overlay(
     action_type: str,
     file_list: list,
     cursor: int,
-) -> None:
-    """Draw a file-picker panel so the user can select an uploaded script file."""
+    mouse_pos: tuple = (0, 0),
+    watching: bool = True,
+) -> dict:
+    """Draw file-picker panel; return {key: rect} of clickable elements."""
     h, w = frame.shape[:2]
-    px1, py1 = w // 2 - 340, h // 2 - 170
-    px2, py2 = w // 2 + 340, h // 2 + 195
+    rects: dict = {}
+    px1, py1 = w // 2 - 340, h // 2 - 185
+    px2, py2 = w // 2 + 340, h // 2 + 200
     panel = frame.copy()
     cv2.rectangle(panel, (px1, py1), (px2, py2), (15, 15, 15), -1)
     cv2.addWeighted(panel, 0.82, frame, 0.18, 0, frame)
     cv2.rectangle(frame, (px1, py1), (px2, py2), _ORANGE, 2)
 
     lx, y = px1 + 18, py1 + 30
-    title = ("SELECT APPLESCRIPT FILE"
-             if action_type == "applescript" else "SELECT SHELL SCRIPT FILE")
+    title = ("ADD APPLESCRIPT FILE"
+             if action_type == "applescript" else "ADD SHELL SCRIPT FILE")
     _put(frame, title, (lx, y), scale=0.72, color=_ORANGE)
-    _put(frame, "Esc to cancel", (px2 - 170, y),
-         scale=0.48, color=_GREY, thickness=1)
+
+    cancel_rect = (px2 - 88, py1 + 8, px2 - 8, py1 + 32)
+    draw_button(frame, cancel_rect, "Cancel", mouse_pos)
+    rects["cancel"] = cancel_rect
     y += 34
 
     folder_str = str(SCRIPTS_DIR)
-    if len(folder_str) > 58:
-        folder_str = "\u2026" + folder_str[-55:]
-    _put(frame, f"Folder: {folder_str}", (lx, y),
+    if len(folder_str) > 60:
+        folder_str = "\u2026" + folder_str[-57:]
+    _put(frame, f"scripts/: {folder_str}", (lx, y),
          scale=0.44, color=_GREY, thickness=1)
-    y += 32
+    y += 28
 
+    # \u2500\u2500 Upload row: Browse + Open-in-Finder buttons \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    browse_rect = (lx, y, lx + 148, y + 32)
+    finder_rect = (lx + 158, y, lx + 158 + 160, y + 32)
+    draw_button(frame, browse_rect, "Browse Files\u2026",      mouse_pos)
+    draw_button(frame, finder_rect, "Open scripts/ folder", mouse_pos)
+    rects["browse"] = browse_rect
+    rects["finder"] = finder_rect
+    y += 40
+
+    # \u2500\u2500 Folder-watcher status \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+    dot_x, dot_y = lx + 6, y + 6
+    if watching:
+        cv2.circle(frame, (dot_x, dot_y), 5, _GREEN, -1)
+        _put(frame, "Watching for new files \u2014 drag files to scripts/ in Finder",
+             (lx + 18, y + 10), scale=0.45, color=_GREEN, thickness=1)
+    else:
+        cv2.circle(frame, (dot_x, dot_y), 5, _GREY, 1)
+        _put(frame, "Not watching",
+             (lx + 18, y + 10), scale=0.45, color=_GREY, thickness=1)
+    y += 22
+
+    cv2.line(frame, (px1 + 8, y), (px2 - 8, y), (60, 60, 60), 1)
+    y += 12
+
+    # \u2500\u2500 File list \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     if not file_list:
         ext_hint = (".applescript"
                     if action_type == "applescript" else ".sh / .bash / .zsh")
-        _put(frame, "No script files found.", (lx, y), color=_YELLOW)
-        y += 30
-        _put(frame, f"Drop {ext_hint} files into the scripts/ folder,",
-             (lx, y), scale=0.54, color=_GREY, thickness=1)
-        y += 24
-        _put(frame, "then press r again to restart registration.",
-             (lx, y), scale=0.54, color=_GREY, thickness=1)
+        _put(frame, "No script files in scripts/ yet.", (lx, y), color=_YELLOW)
+        y += 28
+        _put(frame, f"Browse above or drop {ext_hint} files into the drop zone.",
+             (lx, y), scale=0.52, color=_GREY, thickness=1)
     else:
-        _put(frame, "j / k  =  navigate          Enter  =  select",
+        _put(frame, "Click a file to select it",
              (lx, y), scale=0.50, color=_GREY, thickness=1)
-        y += 30
-        row_h = 30
-        max_visible = max(1, min(len(file_list), (py2 - y - 24) // row_h))
+        y += 28
+        row_h = 32
+        max_visible = max(1, min(len(file_list), (py2 - y - 16) // row_h))
         start = max(0, min(cursor - max_visible // 2,
                            len(file_list) - max_visible))
         for idx in range(start, min(start + max_visible, len(file_list))):
             fp = file_list[idx]
-            color = _CYAN if idx == cursor else _WHITE
-            prefix = "\u25b6  " if idx == cursor else "   "
-            _put(frame, f"{prefix}{fp.name}", (lx, y), scale=0.62, color=color)
+            row_rect = (px1 + 8, y - 4, px2 - 8, y + row_h - 6)
+            rects[f"file_{idx}"] = row_rect
+            hovered  = _hit(row_rect, mouse_pos)
+            selected = idx == cursor
+            if selected:
+                cv2.rectangle(frame, (px1 + 8, y - 4), (px2 - 8, y + row_h - 6),
+                              (40, 40, 60), -1)
+                cv2.rectangle(frame, (px1 + 8, y - 4), (px2 - 8, y + row_h - 6),
+                              _CYAN, 1)
+            elif hovered:
+                cv2.rectangle(frame, (px1 + 8, y - 4), (px2 - 8, y + row_h - 6),
+                              (32, 32, 50), -1)
+            color  = _CYAN if selected else _WHITE
+            prefix = "\u25b6  " if selected else "   "
+            _put(frame, f"{prefix}{fp.name}", (lx, y + 12), scale=0.62, color=color)
             y += row_h
         if len(file_list) > max_visible:
             _put(frame, f"  \u2026 {len(file_list)} files total",
                  (lx, y + 4), scale=0.44, color=_GREY, thickness=1)
+    return rects
+
+
+# ---------------------------------------------------------------------------
+# Mouse / button utilities
+# ---------------------------------------------------------------------------
+
+_mouse_state: dict = {"pos": (0, 0), "click": None}
+
+
+def _mouse_cb(event, x, y, flags, param):
+    _mouse_state["pos"] = (x, y)
+    if event == cv2.EVENT_LBUTTONDOWN:
+        _mouse_state["click"] = (x, y)
+
+
+def _hit(rect: tuple, point) -> bool:
+    if not point or not rect:
+        return False
+    x, y = point
+    return rect[0] <= x <= rect[2] and rect[1] <= y <= rect[3]
+
+
+def draw_button(
+    frame,
+    rect: tuple,
+    label: str,
+    mouse_pos: tuple = (0, 0),
+    active: bool = False,
+    danger: bool = False,
+) -> None:
+    x1, y1, x2, y2 = rect
+    hovered = _hit(rect, mouse_pos)
+    if danger:
+        bg     = (90, 40, 40) if hovered else (55, 20, 20)
+        border = (160, 70, 70)
+    elif active:
+        bg     = (30, 130, 30) if hovered else (20, 100, 20)
+        border = _GREEN
+    elif hovered:
+        bg     = (55, 55, 85)
+        border = _CYAN
+    else:
+        bg     = (32, 32, 32)
+        border = (75, 75, 75)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), bg, -1)
+    cv2.rectangle(frame, (x1, y1), (x2, y2), border, 1)
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_DUPLEX, 0.50, 1)
+    tx = x1 + max(4, (x2 - x1 - tw) // 2)
+    ty = y1 + (y2 - y1 + th) // 2
+    _put(frame, label, (tx, ty), scale=0.50, color=_WHITE, thickness=1)
+
+
+def draw_main_buttons(
+    frame,
+    mouse_pos: tuple,
+    show_landmarks: bool,
+    show_gestures: bool,
+    voice_on: bool = False,
+) -> dict:
+    """Draw the clickable bottom bar; return {key: rect}."""
+    h, w = frame.shape[:2]
+    y1, y2 = h - 46, h - 8
+    specs = [
+        ("quit",      "Quit",                                          65),
+        ("landmarks", f"Landmarks: {'ON ' if show_landmarks else 'OFF'}", 150),
+        ("gestures",  "Gestures",                                      94),
+        ("register",  "Register",                                      94),
+        ("camera",    "Camera",                                        84),
+        ("voice",     f"Voice: {'ON ' if voice_on else 'OFF'}",        110),
+    ]
+    rects: dict = {}
+    x = 12
+    for key, label, bw in specs:
+        rect = (x, y1, x + bw, y2)
+        is_active = (key == "landmarks" and show_landmarks) or \
+                    (key == "gestures"  and show_gestures) or \
+                    (key == "voice"     and voice_on)
+        draw_button(frame, rect, label, mouse_pos, active=is_active)
+        rects[key] = rect
+        x += bw + 8
+    return rects
+
+
+def draw_voice_status(frame, status: str, status_text: str, wake_word: str) -> None:
+    """Draw a small voice-status indicator below the top bar (top-left)."""
+    if not status or status == "off":
+        return
+    color = {
+        "listening":     _CYAN,
+        "loading":       _YELLOW,
+        "transcribing":  _YELLOW,
+        "heard":         _GREEN,
+        "executing":     _GREEN,
+        "error":         (0, 80, 255),
+    }.get(status, _WHITE)
+
+    label_for = {
+        "listening":    f"listening for \"{wake_word}\"…",
+        "loading":      status_text or "loading model…",
+        "transcribing": "transcribing…",
+        "heard":        f"heard: {status_text}" if status_text else "heard",
+        "executing":    f"running: {status_text}" if status_text else "running",
+        "error":        f"error: {status_text}" if status_text else "error",
+    }
+    msg = label_for.get(status, status)
+    # Truncate to keep it on one line
+    if len(msg) > 70:
+        msg = msg[:67] + "…"
+    _put(frame, f"VOICE  {msg}", (10, 92), scale=0.55, color=color, thickness=1)
 
 
 # ---------------------------------------------------------------------------
@@ -518,58 +819,70 @@ def draw_camera_selector(
     cursor: int,
     availability: dict,
     has_active: bool,
-) -> None:
+    mouse_pos: tuple = (0, 0),
+) -> dict:
+    """Draw camera selector; return {key: rect} of clickable elements."""
     h, w = frame.shape[:2]
+    rects: dict = {}
 
-    # Dark overlay (works over a live frame or a black frame)
     overlay = frame.copy()
     cv2.rectangle(overlay, (0, 0), (w, h), _BLACK, -1)
     cv2.addWeighted(overlay, 0.80, frame, 0.20, 0, frame)
 
     _put(frame, "SELECT CAMERA", (w // 2 - 140, 72), scale=0.95, color=_ORANGE)
+    _put(frame, "Click a camera to open it",
+         (w // 2 - 130, 106), scale=0.50, color=_GREY, thickness=1)
 
-    bottom_hint = "Esc = cancel" if has_active else "q / Esc = quit"
-    _put(frame, "j / k = navigate    Enter = open    r = rescan",
-         (w // 2 - 215, h - 56), scale=0.50, color=_GREY, thickness=1)
-    _put(frame, bottom_hint, (w // 2 - 75, h - 30),
-         scale=0.50, color=_GREY, thickness=1)
+    # Bottom buttons
+    btn_y1, btn_y2 = h - 54, h - 14
+    rescan_rect = (w // 2 - 116, btn_y1, w // 2 - 8,   btn_y2)
+    close_rect  = (w // 2 + 8,   btn_y1, w // 2 + 116, btn_y2)
+    draw_button(frame, rescan_rect, "Rescan", mouse_pos)
+    draw_button(frame, close_rect, "Cancel" if has_active else "Quit", mouse_pos)
+    rects["rescan"] = rescan_rect
+    rects["close"]  = close_rect
 
     if not cam_names:
         _put(frame, "No cameras detected.",
              (w // 2 - 160, h // 2 - 16), color=_YELLOW)
-        _put(frame, "Connect a camera, then press  r  to rescan.",
-             (w // 2 - 230, h // 2 + 26), scale=0.58, color=_GREY, thickness=1)
-        return
+        _put(frame, "Connect a camera then click  Rescan.",
+             (w // 2 - 210, h // 2 + 26), scale=0.58, color=_GREY, thickness=1)
+        return rects
 
-    row_h = 52
+    row_h = 56
     total_h = len(cam_names) * row_h
-    start_y = max(130, h // 2 - total_h // 2)
+    start_y = max(140, h // 2 - total_h // 2)
 
     for idx, name in enumerate(cam_names):
         y = start_y + idx * row_h
         selected = idx == cursor
-        avail = availability.get(idx)      # True / False / None (unknown)
+        avail    = availability.get(idx)
+        row_rect = (w // 2 - 310, y - 28, w // 2 + 310, y + 20)
+        rects[f"cam_{idx}"] = row_rect
 
-        bg = (30, 30, 55) if selected else (18, 18, 18)
-        cv2.rectangle(frame,
-                      (w // 2 - 300, y - 24), (w // 2 + 300, y + 18),
-                      bg, -1)
+        hovered = _hit(row_rect, mouse_pos)
         if selected:
-            cv2.rectangle(frame,
-                          (w // 2 - 300, y - 24), (w // 2 + 300, y + 18),
-                          _CYAN, 1)
+            bg = (30, 30, 58)
+        elif hovered:
+            bg = (42, 42, 58)
+        else:
+            bg = (18, 18, 18)
+        cv2.rectangle(frame, (w // 2 - 310, y - 28), (w // 2 + 310, y + 20), bg, -1)
+        border = _CYAN if selected else ((90, 90, 120) if hovered else (35, 35, 35))
+        cv2.rectangle(frame, (w // 2 - 310, y - 28), (w // 2 + 310, y + 20), border, 1)
 
         name_color = _CYAN if selected else _WHITE
         prefix = "▶  " if selected else "   "
         _put(frame, f"{prefix}{idx}:  {name}",
-             (w // 2 - 288, y), scale=0.68, color=name_color)
+             (w // 2 - 298, y), scale=0.70, color=name_color)
 
         if avail is True:
             _put(frame, "● available",
-                 (w // 2 + 140, y), scale=0.52, color=_GREEN, thickness=1)
+                 (w // 2 + 148, y), scale=0.52, color=_GREEN, thickness=1)
         elif avail is False:
             _put(frame, "○ unavailable",
-                 (w // 2 + 140, y), scale=0.52, color=_GREY, thickness=1)
+                 (w // 2 + 148, y), scale=0.52, color=_GREY, thickness=1)
+    return rects
 
 
 # ---------------------------------------------------------------------------
@@ -748,6 +1061,31 @@ def main():
     flash_gesture = ""
     flash_ts = 0.0
 
+    # ── Voice listener ────────────────────────────────────────────────────
+    voice_settings = (settings.get("voice") or {}) if isinstance(settings, dict) else {}
+    voice_commands_cfg = config.get("voice_commands") or {}
+    voice_wake_word = str(voice_settings.get("wake_word", "hey vision"))
+
+    def _on_voice_command(name: str, cfg: dict) -> None:
+        nonlocal flash_gesture, flash_ts
+        flash_gesture = name
+        flash_ts = time.time()
+        logger.info("Voice triggered: %s → %s", name, cfg.get("label", name))
+        threading.Thread(
+            target=trigger.execute, args=(cfg,), daemon=True,
+        ).start()
+
+    voice_listener = VoiceListener(
+        wake_word=voice_wake_word,
+        commands=voice_commands_cfg,
+        on_command=_on_voice_command,
+        model_size=str(voice_settings.get("model", "base.en")),
+        language=str(voice_settings.get("language", "en")),
+        silence_threshold=float(voice_settings.get("silence_threshold", 0.01)),
+    )
+    if bool(voice_settings.get("enabled", False)):
+        voice_listener.start()
+
     show_gestures: bool = False
     gesture_list_cursor: int = 0
 
@@ -767,6 +1105,8 @@ def main():
     reg_is_edit: bool = False
     reg_edit_is_custom: bool = False
 
+    _folder_watcher: _FolderWatcher | None = None
+
     fps = 0.0
     fps_frame_cnt = 0
     fps_tick = time.time()
@@ -775,7 +1115,21 @@ def main():
     logger.info(
         "Press  q / Esc  to quit,  l  to toggle landmarks,  r  to register a gesture.")
 
+    # Button rects from the previous frame (for click hit-testing)
+    _cam_btns:     dict = {}
+    _main_btns:    dict = {}
+    _gesture_btns: dict = {}
+    _reg_btns:     dict = {}
+    _file_btns:    dict = {}
+    _del_btns:     dict = {}
+    _cb_registered = False
+
     while True:
+        # ── Mouse state ────────────────────────────────────────────────────
+        mouse_pos = _mouse_state["pos"]
+        click     = _mouse_state["click"]
+        _mouse_state["click"] = None          # consume
+
         # ── Frame acquisition ──────────────────────────────────────────────
         if cam_select_mode or cap is None:
             frame = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -876,210 +1230,284 @@ def main():
 
         flash_active = bool(flash_gesture) and (time.time() - flash_ts < 1.0)
 
+        # ── Folder-watcher lifecycle ───────────────────────────────────────
+        if reg_state == REG_FILE_PICK:
+            if _folder_watcher is None:
+                _folder_watcher = _FolderWatcher(reg_action_type)
+            if _folder_watcher.poll():
+                reg_file_list = _get_script_files(reg_action_type)
+                reg_file_cursor = max(0, len(reg_file_list) - 1)
+        elif _folder_watcher is not None:
+            _folder_watcher.close()
+            _folder_watcher = None
+
         # ── Drawing ────────────────────────────────────────────────────────
         if cam_select_mode:
-            draw_camera_selector(
+            _cam_btns = draw_camera_selector(
                 frame, all_cam_names, cam_select_cursor,
-                cam_availability, cap is not None,
+                cam_availability, cap is not None, mouse_pos,
             )
+            _main_btns = _gesture_btns = _reg_btns = _file_btns = _del_btns = {}
         else:
             draw_overlay(
-                frame,
-                current_gesture,
-                action_label,
-                fps,
-                hold_progress,
-                flash_active,
-                show_fps,
+                frame, current_gesture, action_label,
+                fps, hold_progress, flash_active, show_fps,
             )
+            voice_status, voice_status_text = voice_listener.status()
+            _main_btns = draw_main_buttons(
+                frame, mouse_pos, show_landmarks, show_gestures,
+                voice_on=voice_listener.running,
+            )
+            draw_voice_status(frame, voice_status, voice_status_text, voice_wake_word)
 
             if reg_state not in (REG_IDLE, REG_FILE_PICK, REG_DELETE_CONFIRM):
-                draw_registration_overlay(
-                    frame,
-                    reg_state,
-                    reg_input_buf,
-                    reg_fingers,
-                    reg_name,
-                    reg_action_type,
-                    reg_action_detail,
-                    reg_stable_count,
-                    reg_current_fingers,
-                    reg_selected_filename,
-                    reg_is_edit,
+                _reg_btns = draw_registration_overlay(
+                    frame, reg_state, reg_input_buf, reg_fingers,
+                    reg_name, reg_action_type, reg_action_detail,
+                    reg_stable_count, reg_current_fingers,
+                    reg_selected_filename, reg_is_edit, mouse_pos,
                 )
+            else:
+                _reg_btns = {}
 
             if reg_state == REG_FILE_PICK:
-                draw_file_pick_overlay(
-                    frame, reg_action_type, reg_file_list, reg_file_cursor)
+                _file_btns = draw_file_pick_overlay(
+                    frame, reg_action_type, reg_file_list,
+                    reg_file_cursor, mouse_pos,
+                    watching=(_folder_watcher is not None))
+            else:
+                _file_btns = {}
 
             if reg_state == REG_DELETE_CONFIRM:
-                draw_delete_confirm_overlay(frame, reg_name)
+                _del_btns = draw_delete_confirm_overlay(
+                    frame, reg_name, mouse_pos)
+            else:
+                _del_btns = {}
 
             if show_gestures and reg_state == REG_IDLE:
-                draw_gestures_list_overlay(
-                    frame, gesture_cfgs, gesture_list_cursor)
+                _gesture_btns = draw_gestures_list_overlay(
+                    frame, gesture_cfgs, gesture_list_cursor, mouse_pos)
+            else:
+                _gesture_btns = {}
 
         cv2.imshow("VisionTrigger", frame)
+        if not _cb_registered:
+            cv2.setMouseCallback("VisionTrigger", _mouse_cb)
+            _cb_registered = True
 
-        key = cv2.waitKey(1) & 0xFF
+        kbd = cv2.waitKey(1) & 0xFF
 
-        # ── Camera selector key handling ───────────────────────────────────
+        # ── Shared helper: open a camera by index ──────────────────────────
+        def _switch_camera(idx: int) -> bool:
+            nonlocal cap, cam_idx, cam_name, cam_select_mode, fps_frame_cnt, fps_tick
+            new_cap = _open_index(idx)
+            if new_cap:
+                if cap is not None:
+                    cap.release()
+                cap = new_cap
+                cam_idx = idx
+                cam_name = (all_cam_names[idx]
+                            if idx < len(all_cam_names) else f"Camera {idx}")
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                cam_select_mode = False
+                fps_frame_cnt = 0
+                fps_tick = time.time()
+                logger.info("Switched to camera %d: %s", cam_idx, cam_name)
+                return True
+            cam_availability[idx] = False
+            logger.warning("Camera %d could not be opened.", idx)
+            return False
+
+        # ── Shared helper: cancel registration ─────────────────────────────
+        def _cancel_reg() -> None:
+            nonlocal reg_state, reg_input_buf, reg_stable_count
+            nonlocal reg_prev_fingers, reg_current_fingers, reg_file_list
+            nonlocal reg_file_cursor, reg_selected_filename, reg_name
+            nonlocal reg_is_edit, reg_edit_is_custom
+            reg_state = REG_IDLE
+            reg_input_buf = ""
+            reg_stable_count = 0
+            reg_prev_fingers = None
+            reg_current_fingers = None
+            reg_file_list = []
+            reg_file_cursor = 0
+            reg_selected_filename = ""
+            reg_name = ""
+            reg_is_edit = False
+            reg_edit_is_custom = False
+            hold_counts.clear()
+            logger.info("Gesture registration cancelled.")
+
+        # ── Shared helper: confirm/save gesture ────────────────────────────
+        def _save_gesture() -> None:
+            nonlocal reg_state, reg_fingers, reg_name, reg_action_type
+            nonlocal reg_action_detail, reg_input_buf, reg_file_list
+            nonlocal reg_file_cursor, reg_selected_filename, reg_is_edit
+            nonlocal reg_edit_is_custom, flash_gesture, flash_ts
+            if reg_is_edit:
+                is_custom = bool(gesture_cfgs.get(reg_name, {}).get("fingers"))
+                entry = update_gesture_action(
+                    CONFIG_PATH, reg_name, reg_action_type,
+                    reg_action_detail, is_custom,
+                )
+                gesture_cfgs[reg_name] = entry
+                flash_gesture = reg_name
+                flash_ts = time.time()
+                logger.info("Updated gesture '%s' → %s", reg_name, reg_action_type)
+            else:
+                lbl = reg_name.replace("_", " ").title()
+                entry = save_custom_gesture(
+                    CONFIG_PATH, reg_name, reg_fingers,
+                    reg_action_type, reg_action_detail, label=lbl,
+                )
+                recognizer._gesture_map[reg_fingers] = reg_name
+                gesture_cfgs[reg_name] = entry
+                flash_gesture = reg_name
+                flash_ts = time.time()
+                logger.info("Registered gesture '%s' → %s: %s",
+                            reg_name, reg_action_type, reg_action_detail)
+            reg_state = REG_IDLE
+            reg_fingers = None
+            reg_name = ""
+            reg_action_type = ""
+            reg_action_detail = ""
+            reg_input_buf = ""
+            reg_file_list = []
+            reg_file_cursor = 0
+            reg_selected_filename = ""
+            reg_is_edit = False
+            reg_edit_is_custom = False
+            hold_counts.clear()
+
+        # ── Camera selector input ──────────────────────────────────────────
         if cam_select_mode:
-            if key in (ord("q"), 27):
-                if cap is not None:          # cancel → back to live view
+            if kbd in (ord("q"), 27) or _hit(_cam_btns.get("close", ()), click):
+                if cap is not None:
                     cam_select_mode = False
                 else:
-                    break                    # no camera at all → quit
-            elif key == ord("j"):
+                    break
+            elif kbd == ord("j"):
                 cam_select_cursor = min(cam_select_cursor + 1,
                                         max(0, len(all_cam_names) - 1))
-            elif key == ord("k"):
+            elif kbd == ord("k"):
                 cam_select_cursor = max(cam_select_cursor - 1, 0)
-            elif key == ord("r"):
+            elif kbd == ord("r") or _hit(_cam_btns.get("rescan", ()), click):
                 rescan_cameras()
                 logger.info("Camera list rescanned.")
-            elif key == 13 and all_cam_names:   # Enter – open selected
-                new_cap = _open_index(cam_select_cursor)
-                if new_cap:
-                    if cap is not None:
-                        cap.release()
-                    cap = new_cap
-                    cam_idx = cam_select_cursor
-                    cam_name = (all_cam_names[cam_select_cursor]
-                                if cam_select_cursor < len(all_cam_names)
-                                else f"Camera {cam_select_cursor}")
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                    cam_select_mode = False
-                    fps_frame_cnt = 0
-                    fps_tick = time.time()
-                    logger.info("Switched to camera %d: %s", cam_idx, cam_name)
+            else:
+                # Keyboard Enter opens highlighted row; click opens clicked row
+                open_idx = None
+                if kbd == 13 and all_cam_names:
+                    open_idx = cam_select_cursor
                 else:
-                    cam_availability[cam_select_cursor] = False
-                    logger.warning("Camera %d could not be opened.", cam_select_cursor)
+                    for key_name, rect in _cam_btns.items():
+                        if key_name.startswith("cam_") and _hit(rect, click):
+                            open_idx = int(key_name.split("_")[1])
+                            cam_select_cursor = open_idx
+                            break
+                if open_idx is not None:
+                    _switch_camera(open_idx)
 
-        # ── Registration key handling ──────────────────────────────────────
+        # ── Registration input ─────────────────────────────────────────────
         elif reg_state != REG_IDLE:
-            if key == 27:   # Esc → cancel
-                reg_state = REG_IDLE
-                reg_input_buf = ""
-                reg_stable_count = 0
-                reg_prev_fingers = None
-                reg_current_fingers = None
-                reg_file_list = []
-                reg_file_cursor = 0
-                reg_selected_filename = ""
-                reg_name = ""
-                reg_is_edit = False
-                reg_edit_is_custom = False
-                hold_counts.clear()
-                logger.info("Gesture registration cancelled.")
+            # Cancel (Esc key or Cancel button)
+            if kbd == 27 or _hit(_reg_btns.get("cancel", ()), click):
+                _cancel_reg()
             elif reg_state in (REG_NAME, REG_ACTION_DETAIL):
-                if key == 13:   # Enter
+                if kbd == 13:
                     text = reg_input_buf.strip()
                     if text:
                         if reg_state == REG_NAME:
                             reg_name = text.upper()
                             reg_input_buf = ""
                             reg_state = REG_ACTION_TYPE
-                        else:   # REG_ACTION_DETAIL
+                        else:
                             reg_action_detail = text
                             reg_input_buf = ""
                             reg_state = REG_CONFIRM
-                elif key in (8, 127):   # Backspace / Delete
+                elif kbd in (8, 127):
                     reg_input_buf = reg_input_buf[:-1]
-                elif 32 <= key <= 126:  # Printable ASCII
-                    reg_input_buf += chr(key)
+                elif 32 <= kbd <= 126:
+                    reg_input_buf += chr(kbd)
+
             elif reg_state == REG_ACTION_TYPE:
-                if key == ord("s"):
-                    reg_action_type = "shell"
-                    reg_file_list = _get_script_files("shell")
-                    reg_file_cursor = 0
-                    reg_state = REG_FILE_PICK
-                elif key == ord("a"):
-                    reg_action_type = "applescript"
-                    reg_file_list = _get_script_files("applescript")
-                    reg_file_cursor = 0
-                    reg_state = REG_FILE_PICK
-                elif key == ord("k"):
+                # Key or button click
+                action_chosen = None
+                if kbd == ord("s") or _hit(_reg_btns.get("shell", ()), click):
+                    action_chosen = "shell"
+                elif kbd == ord("a") or _hit(_reg_btns.get("applescript", ()), click):
+                    action_chosen = "applescript"
+                elif kbd == ord("k") or _hit(_reg_btns.get("shortcut", ()), click):
+                    action_chosen = "shortcut"
+                if action_chosen == "shortcut":
                     reg_action_type = "shortcut"
                     reg_input_buf = ""
                     reg_state = REG_ACTION_DETAIL
+                elif action_chosen in ("shell", "applescript"):
+                    reg_action_type = action_chosen
+                    reg_file_list = _get_script_files(action_chosen)
+                    reg_file_cursor = 0
+                    reg_state = REG_FILE_PICK
+
             elif reg_state == REG_FILE_PICK:
-                if key == ord("j"):
+                # Browse button → osascript dialog, copy to scripts/, refresh list
+                if _hit(_file_btns.get("browse", ()), click):
+                    new_files = _browse_and_copy(reg_action_type)
+                    if new_files:
+                        reg_file_list = _get_script_files(reg_action_type)
+                        reg_file_cursor = max(0, len(reg_file_list) - 1)
+                # Open-in-Finder button → reveal scripts/ so user can drag files in
+                elif _hit(_file_btns.get("finder", ()), click):
+                    _open_scripts_folder()
+                elif kbd == ord("j"):
                     reg_file_cursor = min(reg_file_cursor + 1,
                                           max(0, len(reg_file_list) - 1))
-                elif key == ord("k"):
+                elif kbd == ord("k"):
                     reg_file_cursor = max(reg_file_cursor - 1, 0)
-                elif key == 13 and reg_file_list:   # Enter – select file
-                    selected = reg_file_list[reg_file_cursor]
-                    try:
-                        content = selected.read_text(encoding="utf-8").strip()
-                    except Exception as exc:
-                        logger.error("Cannot read %s: %s", selected.name, exc)
+                else:
+                    # Enter selects highlighted; click selects clicked row
+                    sel_idx = None
+                    if kbd == 13 and reg_file_list:
+                        sel_idx = reg_file_cursor
                     else:
-                        reg_action_detail = content
-                        reg_selected_filename = selected.name
-                        reg_input_buf = ""
-                        reg_state = REG_CONFIRM
+                        for key_name, rect in _file_btns.items():
+                            if key_name.startswith("file_") and _hit(rect, click):
+                                sel_idx = int(key_name.split("_")[1])
+                                reg_file_cursor = sel_idx
+                                break
+                    if sel_idx is not None and sel_idx < len(reg_file_list):
+                        chosen_file = reg_file_list[sel_idx]
+                        try:
+                            content = chosen_file.read_text(encoding="utf-8").strip()
+                        except Exception as exc:
+                            logger.error("Cannot read %s: %s", chosen_file.name, exc)
+                        else:
+                            reg_action_detail = content
+                            reg_selected_filename = chosen_file.name
+                            reg_input_buf = ""
+                            reg_state = REG_CONFIRM
+
             elif reg_state == REG_DELETE_CONFIRM:
-                if key == ord("y"):
+                if kbd == ord("y") or _hit(_del_btns.get("delete", ()), click):
                     entry = gesture_cfgs.pop(reg_name, None)
                     delete_gesture_from_config(CONFIG_PATH, reg_name)
                     if entry and entry.get("fingers"):
-                        old_key = tuple(entry["fingers"])
-                        recognizer._gesture_map.pop(old_key, None)
+                        recognizer._gesture_map.pop(tuple(entry["fingers"]), None)
                     hold_counts.pop(reg_name, None)
                     last_trigger_ts.pop(reg_name, None)
                     logger.info("Deleted gesture '%s'", reg_name)
                     reg_state = REG_IDLE
                     reg_name = ""
-                elif key == ord("n"):
+                elif kbd in (ord("n"), 27) or _hit(_del_btns.get("cancel", ()), click):
                     reg_state = REG_IDLE
                     reg_name = ""
+
             elif reg_state == REG_CONFIRM:
-                if key == ord("y"):
-                    if reg_is_edit:
-                        is_custom = bool(
-                            gesture_cfgs.get(reg_name, {}).get("fingers"))
-                        entry = update_gesture_action(
-                            CONFIG_PATH, reg_name, reg_action_type,
-                            reg_action_detail, is_custom,
-                        )
-                        gesture_cfgs[reg_name] = entry
-                        flash_gesture = reg_name
-                        flash_ts = time.time()
-                        logger.info("Updated gesture '%s' → %s",
-                                    reg_name, reg_action_type)
-                    else:
-                        label = reg_name.replace("_", " ").title()
-                        entry = save_custom_gesture(
-                            CONFIG_PATH,
-                            reg_name,
-                            reg_fingers,
-                            reg_action_type,
-                            reg_action_detail,
-                            label=label,
-                        )
-                        recognizer._gesture_map[reg_fingers] = reg_name
-                        gesture_cfgs[reg_name] = entry
-                        flash_gesture = reg_name
-                        flash_ts = time.time()
-                        logger.info("Registered gesture '%s' → %s: %s",
-                                    reg_name, reg_action_type, reg_action_detail)
-                    reg_state = REG_IDLE
-                    reg_fingers = None
-                    reg_name = ""
-                    reg_action_type = ""
-                    reg_action_detail = ""
-                    reg_input_buf = ""
-                    reg_file_list = []
-                    reg_file_cursor = 0
-                    reg_selected_filename = ""
-                    reg_is_edit = False
-                    reg_edit_is_custom = False
-                    hold_counts.clear()
-                elif key == ord("n"):
+                if kbd == ord("y") or _hit(_reg_btns.get("save", ()), click):
+                    _save_gesture()
+                elif (kbd == ord("n") or
+                      _hit(_reg_btns.get("cancel2", ()), click)):
                     reg_state = REG_IDLE
                     reg_fingers = None
                     reg_name = ""
@@ -1092,66 +1520,82 @@ def main():
                     reg_is_edit = False
                     reg_edit_is_custom = False
 
-        # ── Normal key handling ────────────────────────────────────────────
+        # ── Normal input ───────────────────────────────────────────────────
         else:
-            if key in (ord("q"), 27):   # q or Esc
+            if kbd in (ord("q"), 27) or _hit(_main_btns.get("quit", ()), click):
                 break
-            if key == ord("c"):         # open camera selector
+            if kbd == ord("c") or _hit(_main_btns.get("camera", ()), click):
                 rescan_cameras()
                 cam_select_mode = True
                 logger.info("Camera selector opened.")
-            if key == ord("l"):
+            if kbd == ord("l") or _hit(_main_btns.get("landmarks", ()), click):
                 show_landmarks = not show_landmarks
                 logger.info("Landmarks: %s", "ON" if show_landmarks else "OFF")
-            if key == ord("g"):
+            if kbd == ord("g") or _hit(_main_btns.get("gestures", ()), click):
                 show_gestures = not show_gestures
                 if show_gestures:
                     gesture_list_cursor = 0
-                logger.info("Gesture list: %s",
-                            "ON" if show_gestures else "OFF")
+                logger.info("Gesture list: %s", "ON" if show_gestures else "OFF")
+            if kbd == ord("r") or _hit(_main_btns.get("register", ()), click):
+                if not show_gestures:
+                    show_gestures = False
+                    reg_state = REG_CAPTURE
+                    reg_stable_count = 0
+                    reg_prev_fingers = None
+                    reg_current_fingers = None
+                    hold_counts.clear()
+                    logger.info("Gesture registration started.")
+            if kbd == ord("v") or _hit(_main_btns.get("voice", ()), click):
+                if voice_listener.running:
+                    voice_listener.stop()
+                    logger.info("Voice listener stopped.")
+                else:
+                    voice_listener.update_commands(voice_commands_cfg)
+                    voice_listener.start()
+                    logger.info("Voice listener starting…")
             if show_gestures:
                 _gnames = list(gesture_cfgs.keys())
-                if key == ord("j"):
+                # Keyboard navigation
+                if kbd == ord("j"):
                     gesture_list_cursor = min(
                         gesture_list_cursor + 1, max(0, len(_gnames) - 1))
-                elif key == ord("k"):
+                elif kbd == ord("k"):
                     gesture_list_cursor = max(gesture_list_cursor - 1, 0)
-                elif key == ord("e") and _gnames:
+                # Click on a row → select it
+                for key_name, rect in _gesture_btns.items():
+                    if key_name.startswith("row_") and _hit(rect, click):
+                        gesture_list_cursor = int(key_name.split("_")[1])
+                        break
+                # Close button
+                if kbd == ord("g") or _hit(_gesture_btns.get("close", ()), click):
+                    show_gestures = False
+                # Edit button / key
+                elif (kbd == ord("e") or _hit(_gesture_btns.get("edit", ()), click)) and _gnames:
                     if 0 <= gesture_list_cursor < len(_gnames):
                         edit_name = _gnames[gesture_list_cursor]
-                        edit_cfg = gesture_cfgs[edit_name]
-                        reg_name = edit_name
-                        reg_fingers = (
-                            tuple(edit_cfg["fingers"])
-                            if edit_cfg.get("fingers") else None
-                        )
-                        reg_is_edit = True
+                        edit_cfg  = gesture_cfgs[edit_name]
+                        reg_name  = edit_name
+                        reg_fingers = (tuple(edit_cfg["fingers"])
+                                       if edit_cfg.get("fingers") else None)
+                        reg_is_edit      = True
                         reg_edit_is_custom = bool(edit_cfg.get("fingers"))
-                        show_gestures = False
-                        reg_input_buf = ""
-                        reg_file_list = []
-                        reg_file_cursor = 0
+                        show_gestures    = False
+                        reg_input_buf    = ""
+                        reg_file_list    = []
+                        reg_file_cursor  = 0
                         reg_selected_filename = ""
                         reg_state = REG_ACTION_TYPE
                         logger.info("Editing gesture '%s'", edit_name)
-                elif key == ord("d") and _gnames:
+                # Delete button / key
+                elif (kbd == ord("d") or _hit(_gesture_btns.get("delete", ()), click)) and _gnames:
                     if 0 <= gesture_list_cursor < len(_gnames):
                         del_name = _gnames[gesture_list_cursor]
                         reg_name = del_name
                         show_gestures = False
                         reg_state = REG_DELETE_CONFIRM
-                        logger.info(
-                            "Delete confirm for '%s'", del_name)
-            if key == ord("r"):
-                show_gestures = False
-                reg_state = REG_CAPTURE
-                reg_stable_count = 0
-                reg_prev_fingers = None
-                reg_current_fingers = None
-                hold_counts.clear()
-                logger.info(
-                    "Gesture registration started. Hold your gesture steady.")
+                        logger.info("Delete confirm for '%s'", del_name)
 
+    voice_listener.stop()
     if cap is not None:
         cap.release()
     cv2.destroyAllWindows()
