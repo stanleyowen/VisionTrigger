@@ -11,7 +11,9 @@ Controls:
   r       – register a new gesture from camera
 """
 
+import json
 import logging
+import subprocess
 import threading
 import time
 import urllib.request
@@ -47,6 +49,7 @@ REG_ACTION_TYPE = "action_type"
 REG_ACTION_DETAIL = "action_detail"
 REG_FILE_PICK = "file_pick"
 REG_CONFIRM = "confirm"
+REG_DELETE_CONFIRM = "delete_confirm"
 REG_STABLE_REQUIRED = 40   # consecutive frames of the same pattern needed
 
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
@@ -105,6 +108,50 @@ def save_custom_gesture(
         yaml.dump(config, fh, default_flow_style=False,
                   allow_unicode=True, sort_keys=False)
     return entry
+
+
+def update_gesture_action(
+    config_path: Path,
+    name: str,
+    action_type: str,
+    action_detail: str,
+    is_custom: bool,
+) -> dict:
+    """Update only the action fields of an existing gesture, preserving all others."""
+    with open(config_path, "r") as fh:
+        config = yaml.safe_load(fh) or {}
+    section = "custom_gestures" if is_custom else "gestures"
+    entry = dict((config.get(section) or {}).get(name, {}))
+    for k in ("command", "script", "name"):  # remove old action-specific keys
+        entry.pop(k, None)
+    entry["action"] = action_type
+    if action_type == "shell":
+        entry["command"] = action_detail
+    elif action_type == "applescript":
+        entry["script"] = action_detail
+    elif action_type == "shortcut":
+        entry["name"] = action_detail
+    if not isinstance(config.get(section), dict):
+        config[section] = {}
+    config[section][name] = entry
+    with open(config_path, "w") as fh:
+        yaml.dump(config, fh, default_flow_style=False,
+                  allow_unicode=True, sort_keys=False)
+    return entry
+
+
+def delete_gesture_from_config(config_path: Path, name: str) -> None:
+    """Remove a gesture entry from whichever section of config.yaml it lives in."""
+    with open(config_path, "r") as fh:
+        config = yaml.safe_load(fh) or {}
+    for section in ("gestures", "custom_gestures"):
+        d = config.get(section)
+        if isinstance(d, dict) and name in d:
+            del d[name]
+            break
+    with open(config_path, "w") as fh:
+        yaml.dump(config, fh, default_flow_style=False,
+                  allow_unicode=True, sort_keys=False)
 
 
 def display_label(gesture: str, cfg: dict) -> str:
@@ -198,7 +245,7 @@ def draw_overlay(
              scale=1.2, color=_GREEN, thickness=3)
 
     # ── hint ───────────────────────────────────────────────────────────────
-    _put(frame, "q/Esc = quit   l = landmarks   g = gesture list   r = register",
+    _put(frame, "q/Esc = quit   l = landmarks   g = gestures (e=edit  d=delete)   r = register",
          (10, h - 34), scale=0.45, color=_GREY, thickness=1)
 
 
@@ -208,16 +255,17 @@ def _finger_display_str(fingers: tuple) -> str:
     return "  ".join(f"{l}:{'Y' if v else 'N'}" for l, v in zip(labels, fingers))
 
 
-def draw_gestures_list_overlay(frame, gesture_cfgs: dict) -> None:
+def draw_gestures_list_overlay(frame, gesture_cfgs: dict, cursor: int = -1) -> None:
     """Draw a semi-transparent panel listing all configured gestures."""
     h, w = frame.shape[:2]
     rows = list(gesture_cfgs.items())
     row_h = 26
     padding = 16
     header_h = 36
+    footer_h = 28
     max_visible = min(len(rows), (h - 120) // row_h)
-    panel_h = header_h + max_visible * row_h + padding
-    panel_w = 560
+    panel_h = header_h + max_visible * row_h + padding + footer_h
+    panel_w = 580
     px1 = w - panel_w - 16
     py1 = 80
     px2 = w - 16
@@ -235,7 +283,14 @@ def draw_gestures_list_overlay(frame, gesture_cfgs: dict) -> None:
     y += header_h - 6
     cv2.line(frame, (px1 + 8, y - 6), (px2 - 8, y - 6), _GREY, 1)
 
-    for name, cfg in rows[:max_visible]:
+    # Scroll so the selected row is always visible
+    scroll_top = 0
+    if cursor >= 0:
+        scroll_top = max(0, min(cursor - max_visible // 2,
+                                len(rows) - max_visible))
+
+    for list_idx in range(scroll_top, min(scroll_top + max_visible, len(rows))):
+        name, cfg = rows[list_idx]
         if not isinstance(cfg, dict):
             continue
         label = cfg.get("label") or name
@@ -243,23 +298,33 @@ def draw_gestures_list_overlay(frame, gesture_cfgs: dict) -> None:
         detail = (
             cfg.get("command") or cfg.get("script") or cfg.get("name") or ""
         )
-        detail_short = detail[:30] + ("…" if len(detail) > 30 else "")
+        detail_short = detail[:28] + ("…" if len(detail) > 28 else "")
         action_color = {
             "shell": _GREEN,
             "applescript": _YELLOW,
             "shortcut": _CYAN,
         }.get(action, _WHITE)
-        _put(frame, label, (lx, y), scale=0.60, color=_WHITE)
+        is_selected = (list_idx == cursor)
+        row_color = _CYAN if is_selected else _WHITE
+        prefix = "▶  " if is_selected else "   "
+        if is_selected:
+            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8),
+                          (40, 40, 60), -1)
+        _put(frame, f"{prefix}{label}", (lx, y), scale=0.60, color=row_color)
         tag = f"[{action}]"
-        _put(frame, tag, (lx + 180, y), scale=0.52, color=action_color)
-        _put(frame, detail_short, (lx + 270, y),
+        _put(frame, tag, (lx + 190, y), scale=0.52, color=action_color)
+        _put(frame, detail_short, (lx + 280, y),
              scale=0.47, color=_GREY, thickness=1)
         y += row_h
 
     if len(rows) > max_visible:
         _put(frame,
-             f"  … and {len(rows) - max_visible} more (scroll not supported)",
-             (lx, y + 6), scale=0.44, color=_GREY, thickness=1)
+             f"  … {len(rows)} total  (showing {scroll_top + 1}–{min(scroll_top + max_visible, len(rows))})",
+             (lx, y + 4), scale=0.44, color=_GREY, thickness=1)
+        y += footer_h - 4
+    cv2.line(frame, (px1 + 8, y + 2), (px2 - 8, y + 2), _GREY, 1)
+    _put(frame, "j/k = navigate    e = edit action    d = delete",
+         (lx, y + 18), scale=0.48, color=_GREY, thickness=1)
 
 
 def draw_registration_overlay(
@@ -273,6 +338,7 @@ def draw_registration_overlay(
     reg_stable_count: int,
     current_fingers,
     reg_selected_filename: str = "",
+    reg_is_edit: bool = False,
 ) -> None:
     h, w = frame.shape[:2]
     px1, py1 = w // 2 - 310, h // 2 - 140
@@ -283,7 +349,8 @@ def draw_registration_overlay(
     cv2.rectangle(frame, (px1, py1), (px2, py2), _ORANGE, 2)
 
     lx, y = px1 + 18, py1 + 30
-    _put(frame, "REGISTER GESTURE", (lx, y), scale=0.75, color=_ORANGE)
+    title = "EDIT GESTURE" if reg_is_edit else "REGISTER GESTURE"
+    _put(frame, title, (lx, y), scale=0.75, color=_ORANGE)
     _put(frame, "Esc to cancel", (px2 - 168, y), scale=0.48,
          color=_GREY, thickness=1)
     y += 38
@@ -340,7 +407,8 @@ def draw_registration_overlay(
              color=_GREY, thickness=1)
 
     elif reg_state == REG_CONFIRM:
-        _put(frame, "Save this gesture?", (lx, y), color=_YELLOW)
+        save_label = "Update this gesture?" if reg_is_edit else "Save this gesture?"
+        _put(frame, save_label, (lx, y), color=_YELLOW)
         y += 32
         _put(frame, f"Name:    {reg_name}", (lx, y), color=_GREEN, scale=0.60)
         y += 28
@@ -357,6 +425,27 @@ def draw_registration_overlay(
             frame, f"Action:  [{reg_action_type}]  {preview}", (lx, y), scale=0.55)
         y += 38
         _put(frame, "Y  Save        N  Cancel", (lx, y), color=_YELLOW)
+
+
+def draw_delete_confirm_overlay(frame, gesture_name: str) -> None:
+    """Draw a small confirmation panel for gesture deletion."""
+    h, w = frame.shape[:2]
+    px1, py1 = w // 2 - 250, h // 2 - 80
+    px2, py2 = w // 2 + 250, h // 2 + 90
+    panel = frame.copy()
+    cv2.rectangle(panel, (px1, py1), (px2, py2), (15, 15, 15), -1)
+    cv2.addWeighted(panel, 0.85, frame, 0.15, 0, frame)
+    cv2.rectangle(frame, (px1, py1), (px2, py2), (0, 60, 200), 2)
+
+    lx, y = px1 + 20, py1 + 34
+    _put(frame, "DELETE GESTURE", (lx, y), scale=0.72, color=(0, 80, 255))
+    y += 38
+    _put(frame, f"Name:  {gesture_name}", (lx, y), scale=0.65, color=_WHITE)
+    y += 34
+    _put(frame, "This cannot be undone.", (lx, y), scale=0.52,
+         color=_YELLOW, thickness=1)
+    y += 34
+    _put(frame, "Y  Delete        N / Esc  Cancel", (lx, y), color=(0, 80, 255))
 
 
 def draw_file_pick_overlay(
@@ -419,6 +508,107 @@ def draw_file_pick_overlay(
 
 
 # ---------------------------------------------------------------------------
+# Camera detection
+# ---------------------------------------------------------------------------
+
+def _macos_camera_names() -> list[str]:
+    """Return camera display names in AVFoundation order (macOS only)."""
+    try:
+        result = subprocess.run(
+            ["system_profiler", "SPCameraDataType", "-json"],
+            capture_output=True, text=True, timeout=5,
+        )
+        data = json.loads(result.stdout)
+        return [c.get("_name", "") for c in data.get("SPCameraDataType", [])]
+    except Exception:
+        return []
+
+
+def _open_index(idx: int) -> cv2.VideoCapture | None:
+    """Try to open a camera index and confirm it can deliver frames."""
+    cap = cv2.VideoCapture(idx)
+    if cap.isOpened() and cap.grab():
+        return cap
+    cap.release()
+    return None
+
+
+def find_camera(
+    preferred: int,
+    max_probe: int = 6,
+    retries: int = 3,
+    retry_delay: float = 2.0,
+) -> tuple:
+    """
+    Return (VideoCapture, index, display_name) for the best available camera.
+
+    Tries `preferred` first.  If that fails, probes known device indices and
+    prefers any device whose name contains "iPhone" or "Continuity".
+    Retries up to `retries` times with `retry_delay` seconds between attempts
+    so a transiently sleeping Continuity Camera gets a chance to reconnect.
+    """
+    names = _macos_camera_names()
+    # Cap probe range to known device count to avoid OpenCV out-of-bound noise.
+    n_devices = len(names) if names else max_probe
+    probe_range = range(n_devices)
+
+    def label(idx: int) -> str:
+        return names[idx] if idx < len(names) else f"Camera {idx}"
+
+    for attempt in range(retries):
+        # Preferred index first
+        cap = _open_index(preferred)
+        if cap:
+            logger.info("Camera %d opened: %s", preferred, label(preferred))
+            return cap, preferred, label(preferred)
+
+        if attempt == 0:
+            logger.warning(
+                "Camera index %d unavailable – scanning %d device(s)…",
+                preferred, n_devices,
+            )
+
+        # Collect all working cameras
+        candidates: list[tuple[int, cv2.VideoCapture]] = []
+        for idx in probe_range:
+            if idx == preferred:
+                continue
+            cap = _open_index(idx)
+            if cap:
+                candidates.append((idx, cap))
+
+        if candidates:
+            # Prefer Continuity Camera / iPhone camera by name
+            for idx, cap in candidates:
+                name = label(idx)
+                if any(k in name for k in ("iPhone", "Continuity", "iSight")):
+                    for other_idx, other_cap in candidates:
+                        if other_idx != idx:
+                            other_cap.release()
+                    logger.info(
+                        "Built-in camera unavailable – using %s (index %d)",
+                        name, idx,
+                    )
+                    return cap, idx, name
+
+            # Fall back to first working camera
+            idx, cap = candidates[0]
+            for _, other_cap in candidates[1:]:
+                other_cap.release()
+            logger.info("Falling back to camera %d: %s", idx, label(idx))
+            return cap, idx, label(idx)
+
+        if attempt < retries - 1:
+            logger.warning(
+                "No camera available – retrying in %.0fs… (attempt %d/%d)",
+                retry_delay, attempt + 1, retries,
+            )
+            time.sleep(retry_delay)
+
+    return None, -1, ""
+
+
+# ---------------------------------------------------------------------------
 # Main loop
 # ---------------------------------------------------------------------------
 
@@ -451,9 +641,9 @@ def main():
     start_time = time.monotonic()
 
     cam_idx = settings.get("camera_index", 0)
-    cap = cv2.VideoCapture(cam_idx)
-    if not cap.isOpened():
-        logger.error("Cannot open camera index %d", cam_idx)
+    cap, cam_idx, cam_name = find_camera(preferred=cam_idx)
+    if cap is None:
+        logger.error("No working camera found (probed indices 0‥5)")
         return
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
@@ -470,6 +660,7 @@ def main():
     flash_ts = 0.0
 
     show_gestures: bool = False
+    gesture_list_cursor: int = 0
 
     # -- Gesture registration state ----------------------------------------
     reg_state = REG_IDLE
@@ -484,6 +675,8 @@ def main():
     reg_file_list: list = []
     reg_file_cursor: int = 0
     reg_selected_filename: str = ""
+    reg_is_edit: bool = False
+    reg_edit_is_custom: bool = False
 
     fps = 0.0
     fps_frame_cnt = 0
@@ -594,7 +787,7 @@ def main():
             show_fps,
         )
 
-        if reg_state not in (REG_IDLE, REG_FILE_PICK):
+        if reg_state not in (REG_IDLE, REG_FILE_PICK, REG_DELETE_CONFIRM):
             draw_registration_overlay(
                 frame,
                 reg_state,
@@ -606,14 +799,19 @@ def main():
                 reg_stable_count,
                 reg_current_fingers,
                 reg_selected_filename,
+                reg_is_edit,
             )
 
         if reg_state == REG_FILE_PICK:
             draw_file_pick_overlay(
                 frame, reg_action_type, reg_file_list, reg_file_cursor)
 
+        if reg_state == REG_DELETE_CONFIRM:
+            draw_delete_confirm_overlay(frame, reg_name)
+
         if show_gestures and reg_state == REG_IDLE:
-            draw_gestures_list_overlay(frame, gesture_cfgs)
+            draw_gestures_list_overlay(
+                frame, gesture_cfgs, gesture_list_cursor)
 
         cv2.imshow("VisionTrigger", frame)
 
@@ -630,6 +828,9 @@ def main():
                 reg_file_list = []
                 reg_file_cursor = 0
                 reg_selected_filename = ""
+                reg_name = ""
+                reg_is_edit = False
+                reg_edit_is_custom = False
                 hold_counts.clear()
                 logger.info("Gesture registration cancelled.")
             elif reg_state in (REG_NAME, REG_ACTION_DETAIL):
@@ -680,23 +881,51 @@ def main():
                         reg_selected_filename = selected.name
                         reg_input_buf = ""
                         reg_state = REG_CONFIRM
+            elif reg_state == REG_DELETE_CONFIRM:
+                if key == ord("y"):
+                    entry = gesture_cfgs.pop(reg_name, None)
+                    delete_gesture_from_config(CONFIG_PATH, reg_name)
+                    if entry and entry.get("fingers"):
+                        old_key = tuple(entry["fingers"])
+                        recognizer._gesture_map.pop(old_key, None)
+                    hold_counts.pop(reg_name, None)
+                    last_trigger_ts.pop(reg_name, None)
+                    logger.info("Deleted gesture '%s'", reg_name)
+                    reg_state = REG_IDLE
+                    reg_name = ""
+                elif key == ord("n"):
+                    reg_state = REG_IDLE
+                    reg_name = ""
             elif reg_state == REG_CONFIRM:
                 if key == ord("y"):
-                    label = reg_name.replace("_", " ").title()
-                    entry = save_custom_gesture(
-                        CONFIG_PATH,
-                        reg_name,
-                        reg_fingers,
-                        reg_action_type,
-                        reg_action_detail,
-                        label=label,
-                    )
-                    recognizer._gesture_map[reg_fingers] = reg_name
-                    gesture_cfgs[reg_name] = entry
-                    flash_gesture = reg_name
-                    flash_ts = time.time()
-                    logger.info("Registered gesture '%s' → %s: %s",
-                                reg_name, reg_action_type, reg_action_detail)
+                    if reg_is_edit:
+                        is_custom = bool(
+                            gesture_cfgs.get(reg_name, {}).get("fingers"))
+                        entry = update_gesture_action(
+                            CONFIG_PATH, reg_name, reg_action_type,
+                            reg_action_detail, is_custom,
+                        )
+                        gesture_cfgs[reg_name] = entry
+                        flash_gesture = reg_name
+                        flash_ts = time.time()
+                        logger.info("Updated gesture '%s' → %s",
+                                    reg_name, reg_action_type)
+                    else:
+                        label = reg_name.replace("_", " ").title()
+                        entry = save_custom_gesture(
+                            CONFIG_PATH,
+                            reg_name,
+                            reg_fingers,
+                            reg_action_type,
+                            reg_action_detail,
+                            label=label,
+                        )
+                        recognizer._gesture_map[reg_fingers] = reg_name
+                        gesture_cfgs[reg_name] = entry
+                        flash_gesture = reg_name
+                        flash_ts = time.time()
+                        logger.info("Registered gesture '%s' → %s: %s",
+                                    reg_name, reg_action_type, reg_action_detail)
                     reg_state = REG_IDLE
                     reg_fingers = None
                     reg_name = ""
@@ -706,6 +935,8 @@ def main():
                     reg_file_list = []
                     reg_file_cursor = 0
                     reg_selected_filename = ""
+                    reg_is_edit = False
+                    reg_edit_is_custom = False
                     hold_counts.clear()
                 elif key == ord("n"):
                     reg_state = REG_IDLE
@@ -717,6 +948,8 @@ def main():
                     reg_file_list = []
                     reg_file_cursor = 0
                     reg_selected_filename = ""
+                    reg_is_edit = False
+                    reg_edit_is_custom = False
 
         # ── Normal key handling ────────────────────────────────────────────
         else:
@@ -727,8 +960,43 @@ def main():
                 logger.info("Landmarks: %s", "ON" if show_landmarks else "OFF")
             if key == ord("g"):
                 show_gestures = not show_gestures
+                if show_gestures:
+                    gesture_list_cursor = 0
                 logger.info("Gesture list: %s",
                             "ON" if show_gestures else "OFF")
+            if show_gestures:
+                _gnames = list(gesture_cfgs.keys())
+                if key == ord("j"):
+                    gesture_list_cursor = min(
+                        gesture_list_cursor + 1, max(0, len(_gnames) - 1))
+                elif key == ord("k"):
+                    gesture_list_cursor = max(gesture_list_cursor - 1, 0)
+                elif key == ord("e") and _gnames:
+                    if 0 <= gesture_list_cursor < len(_gnames):
+                        edit_name = _gnames[gesture_list_cursor]
+                        edit_cfg = gesture_cfgs[edit_name]
+                        reg_name = edit_name
+                        reg_fingers = (
+                            tuple(edit_cfg["fingers"])
+                            if edit_cfg.get("fingers") else None
+                        )
+                        reg_is_edit = True
+                        reg_edit_is_custom = bool(edit_cfg.get("fingers"))
+                        show_gestures = False
+                        reg_input_buf = ""
+                        reg_file_list = []
+                        reg_file_cursor = 0
+                        reg_selected_filename = ""
+                        reg_state = REG_ACTION_TYPE
+                        logger.info("Editing gesture '%s'", edit_name)
+                elif key == ord("d") and _gnames:
+                    if 0 <= gesture_list_cursor < len(_gnames):
+                        del_name = _gnames[gesture_list_cursor]
+                        reg_name = del_name
+                        show_gestures = False
+                        reg_state = REG_DELETE_CONFIRM
+                        logger.info(
+                            "Delete confirm for '%s'", del_name)
             if key == ord("r"):
                 show_gestures = False
                 reg_state = REG_CAPTURE
