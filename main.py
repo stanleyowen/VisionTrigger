@@ -45,6 +45,20 @@ _BLACK = (0, 0, 0)
 _CYAN = (255, 210, 0)
 _ORANGE = (0, 140, 255)
 
+# Built-in gesture finger states: (thumb, index, middle, ring, pinky) True = extended
+_BUILTIN_FINGER_STATES: dict[str, tuple] = {
+    "THUMBS_UP":   (True,  False, False, False, False),
+    "THUMBS_DOWN": (True,  False, False, False, False),
+    "OPEN_PALM":   (True,  True,  True,  True,  True),
+    "PEACE":       (False, True,  True,  False, False),
+    "FIST":        (False, False, False, False, False),
+    "POINT":       (False, True,  False, False, False),
+    "THREE":       (False, True,  True,  True,  False),
+    "FOUR":        (False, True,  True,  True,  True),
+    "ROCK":        (False, True,  False, False, True),
+    "CALL":        (True,  False, False, False, True),
+}
+
 # Gesture registration states
 REG_IDLE = "idle"
 REG_CAPTURE = "capture"
@@ -319,6 +333,7 @@ def draw_overlay(
     hold_progress: float,
     flash_active: bool,
     show_fps: bool,
+    live_fingers=None,
 ):
     h, w = frame.shape[:2]
 
@@ -333,6 +348,13 @@ def draw_overlay(
     gesture_color = _GREEN if gesture not in ("UNKNOWN", "NONE", "") else _GREY
     _put(frame, f"Gesture:  {gesture}", (10, 56),
          scale=0.80, color=gesture_color)
+
+    # Small hand icon to the right of the gesture label
+    icon_fingers = live_fingers
+    if icon_fingers is None and gesture not in ("UNKNOWN", "NONE", ""):
+        icon_fingers = _BUILTIN_FINGER_STATES.get(gesture)
+    if icon_fingers is not None:
+        draw_hand_icon(frame, 360, 14, tuple(icon_fingers), gesture_name=gesture)
 
     if action_label:
         _put(frame, f"Action:  {action_label}",
@@ -361,6 +383,77 @@ def _finger_display_str(fingers: tuple) -> str:
     return "  ".join(f"{l}:{'Y' if v else 'N'}" for l, v in zip(labels, fingers))
 
 
+def draw_hand_icon(
+    frame, left: int, top: int, fingers: tuple, gesture_name: str = ""
+) -> None:
+    """Render a 46×42 px schematic hand icon.
+
+    Layout (left→right):  thumb | gap | index | middle | ring | pinky
+                                         [========= palm =========]
+
+    Extended fingers are drawn in bright green; curled ones as short dark stubs.
+    THUMBS_UP / THUMBS_DOWN are handled with directional arrows on the thumb.
+    """
+    thumb, index, middle, ring, pinky = fingers
+
+    ON  = (75, 215, 75)    # extended – bright green
+    OFF = (38, 50, 38)     # curled   – dark stub
+    PLM = (52, 76, 52)     # palm background
+
+    fw  = 7    # finger bar width (px)
+    fg  = 2    # gap between finger bars
+    ph  = 9    # palm height (px)
+    mfh = 26   # max bar height when finger is extended
+    sfh = 5    # stub height when finger is curled
+
+    # 4-finger block: index → pinky, each fw wide with fg gaps
+    palm_x = left + 11          # leave room for thumb (7px) + gap (2px) + 2px margin
+    palm_w = 4 * fw + 3 * fg   # = 34 px
+    palm_y = top + 33           # top edge of the palm rect
+
+    # Palm rect
+    cv2.rectangle(frame, (palm_x, palm_y), (palm_x + palm_w, palm_y + ph), PLM, -1)
+    cv2.rectangle(frame, (palm_x, palm_y), (palm_x + palm_w, palm_y + ph), (80, 108, 80), 1)
+
+    # Draw index, middle, ring, pinky
+    for i, ext in enumerate([index, middle, ring, pinky]):
+        fx = palm_x + i * (fw + fg)
+        fh = mfh if ext else sfh
+        fy = palm_y - fh
+        c  = ON if ext else OFF
+        cv2.rectangle(frame, (fx, fy), (fx + fw, palm_y), c, -1)
+        cv2.circle(frame, (fx + fw // 2, fy), fw // 2, c, -1)   # rounded fingertip
+
+    # Thumb column (always left of the 4-finger block)
+    thumb_up   = (gesture_name == "THUMBS_UP")
+    thumb_down = (gesture_name == "THUMBS_DOWN")
+    tc = ON if thumb else OFF
+    tx = left + 1
+
+    if thumb_down:
+        # Thumb bar extends *downward* below the palm
+        fh = mfh if thumb else sfh
+        ty = palm_y + ph
+        cv2.rectangle(frame, (tx, ty), (tx + fw, ty + fh), tc, -1)
+        cv2.circle(frame, (tx + fw // 2, ty + fh), fw // 2, tc, -1)
+        if thumb:
+            pts = np.array([[tx + fw // 2, ty + fh + 5],
+                            [tx - 1,        ty + fh    ],
+                            [tx + fw + 1,   ty + fh    ]], dtype=np.int32)
+            cv2.fillPoly(frame, [pts], ON)
+    else:
+        # Thumb bar extends *upward* (normal hand or THUMBS_UP)
+        fh = mfh if thumb else sfh
+        ty = palm_y - fh
+        cv2.rectangle(frame, (tx, ty), (tx + fw, palm_y), tc, -1)
+        cv2.circle(frame, (tx + fw // 2, ty), fw // 2, tc, -1)
+        if thumb and thumb_up:
+            pts = np.array([[tx + fw // 2, ty - 5],
+                            [tx - 1,        ty    ],
+                            [tx + fw + 1,   ty    ]], dtype=np.int32)
+            cv2.fillPoly(frame, [pts], ON)
+
+
 def draw_gestures_list_overlay(
     frame,
     gesture_cfgs: dict,
@@ -371,11 +464,12 @@ def draw_gestures_list_overlay(
     h, w = frame.shape[:2]
     rects: dict = {}
     rows = list(gesture_cfgs.items())
-    row_h    = 26
-    padding  = 16
+    row_h    = 44          # taller rows to fit hand icon + 2-line text
     header_h = 36
-    footer_h = 50          # extra space for buttons
-    max_visible = min(len(rows), (h - 120) // row_h)
+    padding  = 16
+    footer_h = 50
+    available_h = h - 120 - header_h - padding - footer_h
+    max_visible = min(len(rows), max(1, available_h // row_h))
     panel_h = header_h + max_visible * row_h + padding + footer_h
     panel_w = 580
     px1 = w - panel_w - 16
@@ -389,59 +483,76 @@ def draw_gestures_list_overlay(
     cv2.rectangle(frame, (px1, py1), (px2, py2), _CYAN, 2)
 
     lx = px1 + 14
-    y = py1 + 24
-    _put(frame, f"GESTURES  ({len(gesture_cfgs)})", (lx, y), scale=0.58, color=_CYAN)
+    _put(frame, f"GESTURES  ({len(gesture_cfgs)})", (lx, py1 + 24), scale=0.58, color=_CYAN)
 
     # Close button (top-right of panel)
     close_rect = (px2 - 72, py1 + 6, px2 - 6, py1 + 28)
     draw_button(frame, close_rect, "Close", mouse_pos)
     rects["close"] = close_rect
 
-    y += header_h - 6
-    cv2.line(frame, (px1 + 8, y - 6), (px2 - 8, y - 6), _GREY, 1)
+    sep_y = py1 + header_h - 2
+    cv2.line(frame, (px1 + 8, sep_y), (px2 - 8, sep_y), _GREY, 1)
 
     scroll_top = 0
     if cursor >= 0:
         scroll_top = max(0, min(cursor - max_visible // 2,
                                 len(rows) - max_visible))
 
+    row_y      = sep_y + 4    # top pixel of the first row
+    icon_w     = 52            # pixels reserved for the hand icon + gap
+
     for list_idx in range(scroll_top, min(scroll_top + max_visible, len(rows))):
         name, cfg = rows[list_idx]
         if not isinstance(cfg, dict):
+            row_y += row_h
             continue
         label  = cfg.get("label") or name
         action = cfg.get("action", "?")
         detail = cfg.get("command") or cfg.get("script") or cfg.get("name") or ""
-        detail_short = detail[:28] + ("…" if len(detail) > 28 else "")
+        detail_short = detail[:30] + ("…" if len(detail) > 30 else "")
         action_color = {
             "shell": _GREEN, "applescript": _YELLOW, "shortcut": _CYAN,
         }.get(action, _WHITE)
         is_selected = (list_idx == cursor)
-        row_rect = (px1 + 4, y - 18, px2 - 4, y + 8)
+        row_rect = (px1 + 4, row_y, px2 - 4, row_y + row_h - 2)
         rects[f"row_{list_idx}"] = row_rect
 
         hovered = _hit(row_rect, mouse_pos)
         if is_selected:
-            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8), (40, 40, 60), -1)
+            cv2.rectangle(frame, (px1 + 4, row_y), (px2 - 4, row_y + row_h - 2),
+                          (40, 40, 60), -1)
         elif hovered:
-            cv2.rectangle(frame, (px1 + 4, y - 18), (px2 - 4, y + 8), (30, 30, 46), -1)
+            cv2.rectangle(frame, (px1 + 4, row_y), (px2 - 4, row_y + row_h - 2),
+                          (30, 30, 46), -1)
 
+        # ── Hand shape icon ──────────────────────────────────────────────────
+        raw_fingers = cfg.get("fingers")
+        if raw_fingers is not None:
+            icon_fingers = tuple(bool(f) for f in raw_fingers)
+        else:
+            icon_fingers = _BUILTIN_FINGER_STATES.get(name, (False,) * 5)
+        draw_hand_icon(frame, lx, row_y + 1, icon_fingers, gesture_name=name)
+
+        # ── Two-line text (label on top, action+detail below) ────────────────
         row_color = _CYAN if is_selected else _WHITE
-        prefix = "▶  " if is_selected else "   "
-        _put(frame, f"{prefix}{label}", (lx, y), scale=0.60, color=row_color)
-        _put(frame, f"[{action}]", (lx + 190, y), scale=0.52, color=action_color)
-        _put(frame, detail_short, (lx + 280, y), scale=0.47, color=_GREY, thickness=1)
-        y += row_h
+        prefix = "▶ " if is_selected else ""
+        tx = lx + icon_w
+        _put(frame, f"{prefix}{label}", (tx, row_y + 16), scale=0.55, color=row_color)
+        _put(frame, f"[{action}]",      (tx, row_y + 34), scale=0.48, color=action_color)
+        _put(frame, detail_short, (tx + 90, row_y + 34), scale=0.42, color=_GREY, thickness=1)
+
+        row_y += row_h
 
     if len(rows) > max_visible:
         _put(frame,
              f"  … {len(rows)} total  ({scroll_top+1}–{min(scroll_top+max_visible, len(rows))})",
-             (lx, y + 4), scale=0.44, color=_GREY, thickness=1)
-        y += footer_h - 28
-    cv2.line(frame, (px1 + 8, y + 2), (px2 - 8, y + 2), _GREY, 1)
+             (lx, row_y + 4), scale=0.44, color=_GREY, thickness=1)
+        row_y += footer_h - 28
+
+    cv2.line(frame, (px1 + 8, row_y + 2), (px2 - 8, row_y + 2), _GREY, 1)
 
     # Edit / Delete buttons
-    btn_y1, btn_y2 = y + 10, y + 36
+    btn_y1, btn_y2 = row_y + 10, row_y + 36
     edit_rect = (lx,       btn_y1, lx + 72,  btn_y2)
     del_rect  = (lx + 80,  btn_y1, lx + 158, btn_y2)
     draw_button(frame, edit_rect, "Edit",   mouse_pos)
@@ -1057,6 +1168,7 @@ def main():
 
     hold_counts: dict[str, int] = {}
     last_trigger_ts: dict[str, float] = {}
+    current_live_fingers = None   # finger states for the current frame's hand
 
     flash_gesture = ""
     flash_ts = 0.0
@@ -1165,10 +1277,11 @@ def main():
 
                 current_gesture = recognizer.classify(hand_lm, handedness)
                 action_label = display_label(current_gesture, gesture_cfgs)
+                current_live_fingers = recognizer.finger_states(hand_lm, handedness)
 
                 # ── Registration capture ─────────────────────────────────
                 if reg_state == REG_CAPTURE:
-                    fingers = recognizer.finger_states(hand_lm, handedness)
+                    fingers = current_live_fingers
                     if fingers == reg_prev_fingers:
                         reg_stable_count += 1
                     else:
@@ -1216,6 +1329,7 @@ def main():
                         hold_counts.clear()
             else:
                 hold_counts.clear()
+                current_live_fingers = None
                 if reg_state == REG_CAPTURE:
                     reg_stable_count = 0
                     reg_current_fingers = None
@@ -1252,6 +1366,7 @@ def main():
             draw_overlay(
                 frame, current_gesture, action_label,
                 fps, hold_progress, flash_active, show_fps,
+                live_fingers=current_live_fingers,
             )
             voice_status, voice_status_text = voice_listener.status()
             _main_btns = draw_main_buttons(

@@ -524,5 +524,5 @@ settings:
     enabled: false
     wake_word: hey vision
     language: en
-    model: base.en
+    model: small.en
     silence_threshold: 0.01

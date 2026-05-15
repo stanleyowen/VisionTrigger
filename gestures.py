@@ -87,7 +87,7 @@ class GestureRecognizer:
         Returns:
             One of the gesture name strings, or "UNKNOWN".
         """
-        states = self._finger_states(landmarks, handedness_label)
+        states = self._finger_states(landmarks)
         thumb, index, middle, ring, pinky = states
 
         # Thumbs up / down: thumb extended, all fingers curled
@@ -111,7 +111,7 @@ class GestureRecognizer:
 
     def finger_states(self, landmarks, handedness_label: str) -> tuple:
         """Return (thumb, index, middle, ring, pinky) True if each finger is extended."""
-        return tuple(self._finger_states(landmarks, handedness_label))
+        return tuple(self._finger_states(landmarks))
 
     def close(self) -> None:
         self._landmarker.close()
@@ -121,26 +121,25 @@ class GestureRecognizer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _finger_states(landmarks, handedness_label: str) -> list[bool]:
+    def _finger_states(landmarks) -> list[bool]:
         """
         Return [thumb, index, middle, ring, pinky] True if each is extended.
 
-        Thumb extension is checked on the x-axis (horizontal) because it
-        extends sideways relative to the palm.  All other fingers are
-        checked on the y-axis (tip above PIP joint → extended).
+        Thumb extension is checked on the x-axis. The thumb side is inferred
+        from whether the thumb MCP (lm[2]) sits left or right of the index
+        MCP (lm[5]), so this works for both palm-facing and back-facing
+        orientations without needing a handedness label.
 
-        MediaPipe reports handedness relative to the *original* (unflipped)
-        image, so after a horizontal flip the labels swap.
+        Other fingers use the y-axis (tip above PIP joint → extended).
         """
         lm = landmarks
 
-        # Thumb: tip vs. IP (interphalangeal) joint on the x-axis.
-        # For a "Right" result in the flipped-mirror view the thumb tip
-        # sits to the left of lm[3] when extended.
-        if handedness_label == "Right":
-            thumb_ext = lm[4].x < lm[3].x
-        else:
+        # Find which side the thumb is on, then check if the tip has moved
+        # further in that direction than the IP joint.
+        if lm[2].x > lm[5].x:   # thumb MCP is to the right of index MCP
             thumb_ext = lm[4].x > lm[3].x
+        else:                    # thumb MCP is to the left of index MCP
+            thumb_ext = lm[4].x < lm[3].x
 
         # Other fingers: tip y < PIP y  (smaller y = higher in image)
         # Tip IDs:  8, 12, 16, 20
