@@ -18,21 +18,30 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision as mp_vision
 
+# Single source of truth for built-in gesture finger patterns.
+# Tuple order: (thumb, index, middle, ring, pinky)  True = extended.
+# THUMBS_UP and THUMBS_DOWN share the same finger pattern; direction is
+# disambiguated at classification time using the hand's orientation vector.
+BUILTIN_GESTURES: dict[str, tuple] = {
+    "THUMBS_UP":   (True,  False, False, False, False),
+    "THUMBS_DOWN": (True,  False, False, False, False),
+    "OPEN_PALM":   (True,  True,  True,  True,  True),
+    "PEACE":       (False, True,  True,  False, False),
+    "FIST":        (False, False, False, False, False),
+    "POINT":       (False, True,  False, False, False),
+    "THREE":       (False, True,  True,  True,  False),
+    "FOUR":        (False, True,  True,  True,  True),
+    "ROCK":        (False, True,  False, False, True),
+    "CALL":        (True,  False, False, False, True),
+}
+
+_BUILTIN_GESTURE_MAP: dict[tuple, str] = {
+    v: k for k, v in BUILTIN_GESTURES.items()
+    if k not in ("THUMBS_UP", "THUMBS_DOWN")
+}
+
 
 class GestureRecognizer:
-    # Map of finger-state tuples → gesture name.
-    # Tuple order: (thumb, index, middle, ring, pinky)  True = extended
-    _BUILTIN_GESTURE_MAP: dict[tuple, str] = {
-        (False, True,  False, False, False): "POINT",
-        (False, True,  True,  False, False): "PEACE",
-        (True,  True,  True,  True,  True): "OPEN_PALM",
-        (False, True,  True,  True,  False): "THREE",
-        (False, True,  True,  True,  True): "FOUR",
-        (False, False, False, False, False): "FIST",
-        (False, True,  False, False, True): "ROCK",
-        (True,  False, False, False, True): "CALL",
-    }
-
     def __init__(
         self,
         model_path: str,
@@ -41,7 +50,7 @@ class GestureRecognizer:
         custom_gestures: dict | None = None,
     ):
         # Start with built-ins; custom gestures overlay (and can override) them.
-        self._gesture_map: dict[tuple, str] = dict(self._BUILTIN_GESTURE_MAP)
+        self._gesture_map: dict[tuple, str] = dict(_BUILTIN_GESTURE_MAP)
         if custom_gestures:
             for name, fingers in custom_gestures.items():
                 if len(fingers) != 5:
@@ -74,32 +83,24 @@ class GestureRecognizer:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         return self._landmarker.detect_for_video(mp_image, timestamp_ms)
 
-    def classify(self, landmarks, handedness_label: str) -> str:
-        """
-        Classify the gesture from a list of NormalizedLandmark objects.
-
-        Args:
-            landmarks:        hand_landmarks list from HandLandmarkerResult.
-            handedness_label: "Right" or "Left" (as reported by MediaPipe,
-                              which is mirrored relative to the viewer when
-                              the frame is flipped).
-
-        Returns:
-            One of the gesture name strings, or "UNKNOWN".
-        """
+    def classify(self, landmarks, handedness_label: str = "") -> tuple[str, tuple]:
+        """Returns (gesture_name, finger_states_tuple)."""
         states = self._finger_states(landmarks)
+        finger_tuple = tuple(states)
         thumb, index, middle, ring, pinky = states
 
-        # Thumbs up / down: thumb extended, all fingers curled
         if thumb and not index and not middle and not ring and not pinky:
-            # Landmark 9 = middle finger MCP (rough palm centre).
-            # y increases downward in image coords.
-            if landmarks[4].y < landmarks[9].y:
-                return "THUMBS_UP"
-            else:
-                return "THUMBS_DOWN"
+            # Rotation-robust THUMBS_UP/DOWN: use the dot product of
+            # (wrist→thumb_tip) with (wrist→middle_MCP).
+            # Positive → thumb in same direction as fingers → THUMBS_UP.
+            hx = landmarks[9].x - landmarks[0].x
+            hy = landmarks[9].y - landmarks[0].y
+            tx = landmarks[4].x - landmarks[0].x
+            ty = landmarks[4].y - landmarks[0].y
+            gesture = "THUMBS_UP" if hx * tx + hy * ty > 0 else "THUMBS_DOWN"
+            return gesture, finger_tuple
 
-        return self._gesture_map.get(tuple(states), "UNKNOWN")
+        return self._gesture_map.get(finger_tuple, "UNKNOWN"), finger_tuple
 
     def draw_landmarks(self, bgr_frame, landmark_list) -> None:
         """Overlay hand skeleton onto a BGR frame (in-place)."""
@@ -109,7 +110,7 @@ class GestureRecognizer:
             self._connections,
         )
 
-    def finger_states(self, landmarks, handedness_label: str) -> tuple:
+    def finger_states(self, landmarks, handedness_label: str = "") -> tuple:
         """Return (thumb, index, middle, ring, pinky) True if each finger is extended."""
         return tuple(self._finger_states(landmarks))
 

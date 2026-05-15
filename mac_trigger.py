@@ -19,7 +19,7 @@ _TIMEOUT = 15
 class MacTrigger:
     """Dispatch a config action dict to the appropriate macOS mechanism."""
 
-    def execute(self, action_cfg: dict) -> bool:
+    def execute(self, action_cfg: dict) -> tuple[bool, str]:
         """
         Execute one action.
 
@@ -28,28 +28,33 @@ class MacTrigger:
                         'action' key ('shortcut', 'applescript', 'shell').
 
         Returns:
-            True on success, False on failure.
+            (success, error_message). Empty error_message means success.
         """
         kind = action_cfg.get("action", "")
-        if kind == "shortcut":
-            return self._run_shortcut(action_cfg.get("name", ""))
-        if kind == "applescript":
-            return self._run_applescript(action_cfg.get("script", ""))
-        if kind == "shell":
-            return self._run_shell(action_cfg.get("command", ""))
-
-        logger.error("Unknown action type: %r", kind)
-        return False
+        try:
+            if kind == "shortcut":
+                return self._run_shortcut(action_cfg.get("name", ""))
+            if kind == "applescript":
+                return self._run_applescript(action_cfg.get("script", ""))
+            if kind == "shell":
+                return self._run_shell(action_cfg.get("command", ""))
+            msg = f"Unknown action type: {kind!r}"
+            logger.error(msg)
+            return False, msg
+        except Exception as exc:
+            logger.error("Unexpected error executing '%s': %s", kind, exc)
+            return False, str(exc)
 
     # ------------------------------------------------------------------
     # Private dispatch methods
     # ------------------------------------------------------------------
 
-    def _run_shortcut(self, name: str) -> bool:
+    def _run_shortcut(self, name: str) -> tuple[bool, str]:
         """Run a macOS Shortcut by name (requires macOS 12 Monterey+)."""
         if not name:
-            logger.error("Shortcut name is empty")
-            return False
+            msg = "Shortcut name is empty"
+            logger.error(msg)
+            return False, msg
         try:
             result = subprocess.run(
                 ["shortcuts", "run", name],
@@ -58,25 +63,26 @@ class MacTrigger:
                 timeout=_TIMEOUT,
             )
             if result.returncode != 0:
-                logger.error("Shortcut '%s' failed: %s",
-                             name, result.stderr.strip())
-                return False
+                msg = result.stderr.strip()
+                logger.error("Shortcut '%s' failed: %s", name, msg)
+                return False, msg
             logger.info("Shortcut '%s' ran successfully", name)
-            return True
+            return True, ""
         except FileNotFoundError:
-            logger.error(
-                "'shortcuts' CLI not found. macOS 12 Monterey or later is required."
-            )
-            return False
+            msg = "'shortcuts' CLI not found. macOS 12 Monterey or later is required."
+            logger.error(msg)
+            return False, msg
         except subprocess.TimeoutExpired:
-            logger.error("Shortcut '%s' timed out after %ds", name, _TIMEOUT)
-            return False
+            msg = f"Shortcut '{name}' timed out after {_TIMEOUT}s"
+            logger.error(msg)
+            return False, msg
 
-    def _run_applescript(self, script: str) -> bool:
+    def _run_applescript(self, script: str) -> tuple[bool, str]:
         """Execute an AppleScript snippet with osascript."""
         if not script:
-            logger.error("AppleScript is empty")
-            return False
+            msg = "AppleScript is empty"
+            logger.error(msg)
+            return False, msg
         try:
             result = subprocess.run(
                 ["osascript", "-e", script],
@@ -85,14 +91,16 @@ class MacTrigger:
                 timeout=_TIMEOUT,
             )
             if result.returncode != 0:
-                logger.error("AppleScript failed: %s", result.stderr.strip())
-                return False
-            return True
+                msg = result.stderr.strip()
+                logger.error("AppleScript failed: %s", msg)
+                return False, msg
+            return True, ""
         except subprocess.TimeoutExpired:
-            logger.error("AppleScript timed out after %ds", _TIMEOUT)
-            return False
+            msg = f"AppleScript timed out after {_TIMEOUT}s"
+            logger.error(msg)
+            return False, msg
 
-    def _run_shell(self, command: str) -> bool:
+    def _run_shell(self, command: str) -> tuple[bool, str]:
         """
         Run a shell command.
 
@@ -100,8 +108,9 @@ class MacTrigger:
         machine, so shell=True is acceptable here.
         """
         if not command:
-            logger.error("Shell command is empty")
-            return False
+            msg = "Shell command is empty"
+            logger.error(msg)
+            return False, msg
         try:
             result = subprocess.run(
                 command,
@@ -111,9 +120,11 @@ class MacTrigger:
                 timeout=_TIMEOUT,
             )
             if result.returncode != 0:
-                logger.error("Shell command failed: %s", result.stderr.strip())
-                return False
-            return True
+                msg = result.stderr.strip()
+                logger.error("Shell command failed: %s", msg)
+                return False, msg
+            return True, ""
         except subprocess.TimeoutExpired:
-            logger.error("Shell command timed out after %ds", _TIMEOUT)
-            return False
+            msg = f"Shell command timed out after {_TIMEOUT}s"
+            logger.error(msg)
+            return False, msg
