@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 輔助開發實作：VisionTrigger & iTrace</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    background: #0a0a0f;
+    color: #e8e8f0;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .slideshow {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .slide.active {
+    display: flex;
+    opacity: 1;
+  }
+
+  /* ── Slide backgrounds ── */
+  .slide-1 { background: radial-gradient(ellipse at 30% 50%, #1a0a3e 0%, #0a0a0f 70%); }
+  .slide-2, .slide-3, .slide-4 { background: radial-gradient(ellipse at 70% 30%, #0d1a3e 0%, #0a0a0f 70%); }
+  .slide-5, .slide-6, .slide-7 { background: radial-gradient(ellipse at 30% 70%, #0a2a1a 0%, #0a0a0f 70%); }
+  .slide-8 { background: radial-gradient(ellipse at 50% 50%, #1a1a0a 0%, #0a0a0f 70%); }
+  .slide-9 { background: radial-gradient(ellipse at 50% 30%, #1a0a2a 0%, #0a0a0f 70%); }
+
+  /* ── Grid lines overlay ── */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(100,100,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(100,100,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  /* ── Accent line ── */
+  .accent-line {
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(90deg, #6c63ff, #00d4ff);
+    border-radius: 2px;
+    margin-bottom: 28px;
+  }
+
+  .accent-line.green { background: linear-gradient(90deg, #00c96e, #00d4ff); }
+  .accent-line.gold  { background: linear-gradient(90deg, #f7b731, #ff6b6b); }
+
+  /* ── Slide 1: Title ── */
+  .title-slide { text-align: center; gap: 0; }
+
+  .title-tag {
+    font-size: 12px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #6c63ff;
+    margin-bottom: 24px;
+    font-weight: 600;
+  }
+
+  .title-main {
+    font-size: 52px;
+    font-weight: 800;
+    line-height: 1.15;
+    background: linear-gradient(135deg, #fff 30%, #6c63ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+  }
+
+  .title-sub {
+    font-size: 26px;
+    font-weight: 300;
+    color: #00d4ff;
+    margin-bottom: 40px;
+  }
+
+  .title-bullets {
+    display: flex;
+    gap: 32px;
+    margin-top: 16px;
+  }
+
+  .pill {
+    padding: 8px 20px;
+    border: 1px solid rgba(108,99,255,0.4);
+    border-radius: 24px;
+    font-size: 13px;
+    color: #a8a8c8;
+    background: rgba(108,99,255,0.08);
+  }
+
+  /* ── Content slides ── */
+  .content-slide { align-items: flex-start; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+  .slide-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #6c63ff;
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .slide-label.green { color: #00c96e; }
+  .slide-label.gold  { color: #f7b731; }
+
+  h2 {
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin-bottom: 36px;
+    color: #ffffff;
+  }
+
+  h2 em {
+    font-style: normal;
+    background: linear-gradient(135deg, #6c63ff, #00d4ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  h2 em.green {
+    background: linear-gradient(135deg, #00c96e, #00d4ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  .bullets {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bullets li {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    font-size: 19px;
+    line-height: 1.5;
+    color: #c8c8e0;
+  }
+
+  .bullets li::before {
+    content: '▸';
+    color: #6c63ff;
+    flex-shrink: 0;
+    margin-top: 2px;
+    font-size: 14px;
+  }
+
+  .bullets.green li::before { color: #00c96e; }
+  .bullets.gold  li::before { color: #f7b731; }
+
+  .bullets li strong {
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  /* ── Two-column layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    width: 100%;
+  }
+
+  .col-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 32px;
+  }
+
+  .col-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    color: #6c63ff;
+  }
+
+  .col-card h3.green { color: #00c96e; }
+
+  /* ── Summary slide ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .summary-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 28px;
+  }
+
+  .summary-card .card-icon {
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .summary-card h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+  }
+
+  .summary-card p {
+    font-size: 14px;
+    color: #a0a0b8;
+    line-height: 1.6;
+  }
+
+  /* ── Closing slide ── */
+  .closing-slide { text-align: center; }
+
+  .closing-title {
+    font-size: 48px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 30%, #6c63ff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 16px;
+  }
+
+  .closing-sub {
+    font-size: 20px;
+    color: #a0a0b8;
+    margin-bottom: 40px;
+  }
+
+  .tag-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+
+  .tag {
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .tag-purple { background: rgba(108,99,255,0.2); border: 1px solid rgba(108,99,255,0.5); color: #a89fff; }
+  .tag-green  { background: rgba(0,201,110,0.15); border: 1px solid rgba(0,201,110,0.4); color: #6ee8a8; }
+  .tag-blue   { background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.35); color: #7de8ff; }
+
+  .github-link {
+    font-size: 16px;
+    color: #6c63ff;
+    letter-spacing: 1px;
+  }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px);
+    border-radius: 40px;
+    padding: 10px 24px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: none;
+    border: none;
+    color: #e8e8f0;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 8px;
+    transition: background 0.2s;
+  }
+
+  .nav button:hover { background: rgba(255,255,255,0.1); }
+  .nav button:disabled { opacity: 0.25; cursor: default; }
+
+  .slide-counter {
+    font-size: 13px;
+    color: #8080a0;
+    min-width: 52px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .dot.active {
+    background: #6c63ff;
+    width: 18px;
+    border-radius: 3px;
+  }
+
+  /* ── Progress bar ── */
+  .progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #6c63ff, #00d4ff);
+    transition: width 0.4s ease;
+    z-index: 200;
+  }
+
+  /* ── Slide number badge ── */
+  .badge {
+    position: fixed;
+    top: 24px;
+    right: 32px;
+    font-size: 11px;
+    color: #505070;
+    letter-spacing: 2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="badge" id="badge">01 / 09</div>
+
+<div class="slideshow">
+
+  <!-- Slide 1: Title -->
+  <div class="slide slide-1 title-slide active" id="slide-1">
+    <div class="title-tag">專案分享 · 2026</div>
+    <div class="title-main">AI 輔助開發實作</div>
+    <div class="title-sub">VisionTrigger &amp; iTrace</div>
+    <div class="accent-line"></div>
+    <div class="title-bullets">
+      <div class="pill">手勢 × 語音控制</div>
+      <div class="pill">社群追蹤分析</div>
+      <div class="pill">Claude Code 協作</div>
+    </div>
+  </div>
+
+  <!-- Slide 2: VisionTrigger 介紹 -->
+  <div class="slide slide-2 content-slide" id="slide-2">
+    <div class="slide-label">Project 01</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— 是什麼？</em></h2>
+    <ul class="bullets">
+      <li>用<strong>手勢</strong>控制 macOS 的工具</li>
+      <li>透過 MacBook 鏡頭<strong>即時辨識</strong>手勢</li>
+      <li>觸發 <strong>Shortcuts</strong>、<strong>AppleScript</strong> 或 <strong>Shell 指令</strong></li>
+      <li>支援<strong>語音指令</strong>（Faster-Whisper）</li>
+      <li>可自定義手勢與語音對應動作</li>
+    </ul>
+  </div>
+
+  <!-- Slide 3: VisionTrigger AI 核心 -->
+  <div class="slide slide-3 content-slide" id="slide-3">
+    <div class="slide-label">Project 01 · AI 技術</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— AI 技術核心</em></h2>
+    <ul class="bullets">
+      <li><strong>MediaPipe HandLandmarker</strong>：Google AI 手部骨架偵測模型</li>
+      <li>21 個關節點<strong>即時追蹤</strong>，辨識手指伸展狀態</li>
+      <li><strong>Faster-Whisper</strong>：高效語音轉文字（Whisper 模型優化版）</li>
+      <li>RMS 音量偵測語音活動，<strong>自動啟動辨識</strong></li>
+      <li>所有 AI 推論皆在<strong>本地端執行</strong>，無需網路</li>
+    </ul>
+  </div>
+
+  <!-- Slide 4: VisionTrigger Claude Code -->
+  <div class="slide slide-4 content-slide" id="slide-4">
+    <div class="slide-label">Project 01 · 開發歷程</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— Claude Code 如何協助</em></h2>
+    <ul class="bullets">
+      <li><strong>架構設計</strong>：單執行緒 OpenCV 主迴圈 + 兩條 Daemon 執行緒</li>
+      <li><strong>手勢狀態機</strong>：REG_IDLE → CAPTURE → NAME → ACTION → CONFIRM</li>
+      <li><strong>語音指令模板</strong>：{placeholder} 正則捕獲群組自動替換</li>
+      <li><strong>模組拆分重構</strong>：gestures / mac_trigger / voice / draw_utils</li>
+      <li>Claude Code 輔助撰寫、除錯與優化核心邏輯</li>
+    </ul>
+  </div>
+
+  <!-- Slide 5: iTrace 介紹 -->
+  <div class="slide slide-5 content-slide" id="slide-5">
+    <div class="slide-label green">Project 02</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— 是什麼？</em></h2>
+    <ul class="bullets green">
+      <li><strong>Instagram 追蹤關係</strong>分析工具</li>
+      <li>找出「你追蹤他，他不追蹤你」的帳號</li>
+      <li>網址：<strong>itrace.stanleyowen.com</strong></li>
+      <li>兩種模式：<strong>離線</strong>（JSON 匯出）&amp; <strong>在線</strong>（DevTools 注入）</li>
+      <li>所有資料在<strong>本地端處理</strong>，保護用戶隱私</li>
+    </ul>
+  </div>
+
+  <!-- Slide 6: iTrace 技術架構 -->
+  <div class="slide slide-6 content-slide" id="slide-6">
+    <div class="slide-label green">Project 02 · 技術架構</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— 技術架構</em></h2>
+    <ul class="bullets green">
+      <li><strong>前端</strong>：JavaScript (79.7%) + CSS + HTML</li>
+      <li><strong>打包工具</strong>：Vite</li>
+      <li><strong>離線模式</strong>：匯入 Instagram 資料 JSON，本地比對分析</li>
+      <li><strong>在線模式</strong>：DevTools Console 腳本，疊加互動介面於 Instagram 頁面</li>
+      <li>支援直接<strong>取消追蹤</strong>操作</li>
+    </ul>
+  </div>
+
+  <!-- Slide 7: iTrace Claude Code -->
+  <div class="slide slide-7 content-slide" id="slide-7">
+    <div class="slide-label green">Project 02 · 開發歷程</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— Claude Code 如何協助</em></h2>
+    <ul class="bullets green">
+      <li><strong>功能邏輯設計</strong>：following vs followers 差集演算法</li>
+      <li>UI 互動覆蓋層（<strong>Overlay</strong>）開發與樣式優化</li>
+      <li>ESLint 規範審查與<strong>程式碼品質</strong>提升</li>
+      <li><strong>隱私設計建議</strong>：確保所有資料留在用戶端</li>
+      <li>Claude Code 作為<strong>結對程式設計夥伴</strong>，加速迭代</li>
+    </ul>
+  </div>
+
+  <!-- Slide 8: 心得 -->
+  <div class="slide slide-8 content-slide" id="slide-8">
+    <div class="slide-label gold">心得分享</div>
+    <div class="accent-line gold"></div>
+    <h2><em style="background:linear-gradient(135deg,#f7b731,#ff6b6b);-webkit-background-clip:text;background-clip:text;">AI 輔助開發的心得</em></h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-icon">🤝</div>
+        <h3>AI 是開發夥伴</h3>
+        <p>不只是功能，Claude Code 協助快速實現複雜架構與設計決策</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🔒</div>
+        <h3>本地端 AI 推論</h3>
+        <p>兼顧效能與隱私——兩個專案的 AI 運算皆在用戶裝置完成</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🚀</div>
+        <h3>加速 MVP 交付</h3>
+        <p>從構想到可用原型的速度大幅提升，迭代週期縮短</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🌐</div>
+        <h3>未來方向</h3>
+        <p>更多手勢辨識、多語言語音支援、跨平台擴展</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide 9: 總結 -->
+  <div class="slide slide-9 closing-slide" id="slide-9">
+    <div class="closing-title">謝謝聆聽！</div>
+    <div class="closing-sub">兩個專案，一個共同主題：讓 AI 成為開發的一部分</div>
+    <div class="tag-row">
+      <div class="tag tag-purple">VisionTrigger · 手勢 + 語音控制 Mac</div>
+      <div class="tag tag-green">iTrace · 隱私優先的追蹤分析</div>
+      <div class="tag tag-blue">Claude Code · AI 結對開發</div>
+    </div>
+    <div class="github-link">github.com/stanleyowen</div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<nav class="nav">
+  <button id="prevBtn" onclick="changeSlide(-1)" disabled>&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <span class="slide-counter" id="counter">1 / 9</span>
+  <button id="nextBtn" onclick="changeSlide(1)">&#8594;</button>
+</nav>
+
+<script>
+  const TOTAL = 9;
+  let current = 1;
+
+  const dotsEl = document.getElementById('dots');
+  for (let i = 1; i <= TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 1 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    document.getElementById('slide-' + current).classList.remove('active');
+    current = Math.max(1, Math.min(TOTAL, n));
+    const slide = document.getElementById('slide-' + current);
+    slide.style.display = 'flex';
+    requestAnimationFrame(() => slide.classList.add('active'));
+
+    document.getElementById('counter').textContent = current + ' / ' + TOTAL;
+    document.getElementById('badge').textContent =
+      String(current).padStart(2, '0') + ' / ' + String(TOTAL).padStart(2, '0');
+    document.getElementById('progress').style.width = (current / TOTAL * 100) + '%';
+    document.getElementById('prevBtn').disabled = current === 1;
+    document.getElementById('nextBtn').disabled = current === TOTAL;
+
+    document.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i + 1 === current);
+    });
+  }
+
+  function changeSlide(dir) { goTo(current + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') changeSlide(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     changeSlide(-1);
+  });
+
+  // Init progress
+  document.getElementById('progress').style.width = (1 / TOTAL * 100) + '%';
+</script>
+</body>
+</html>
