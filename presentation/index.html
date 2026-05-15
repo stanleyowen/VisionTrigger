@@ -41,8 +41,11 @@
             { background: radial-gradient(ellipse at 30% 70%, #0a2a1a 0%, #0a0a0f 70%); }
   .slide-11 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
   .slide-12 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
-  .slide-13 { background: radial-gradient(ellipse at 40% 40%, #1a1a0a 0%, #0a0a0f 70%); }
-  .slide-14 { background: radial-gradient(ellipse at 50% 50%, #1a0a3e 0%, #0a0a0f 70%); }
+  .slide-12, .slide-13
+            { background: radial-gradient(ellipse at 65% 35%, #00142a 0%, #0a0a0f 70%); }
+  .slide-14 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
+  .slide-15 { background: radial-gradient(ellipse at 40% 40%, #1a1a0a 0%, #0a0a0f 70%); }
+  .slide-16 { background: radial-gradient(ellipse at 50% 50%, #1a0a3e 0%, #0a0a0f 70%); }
 
   /* ── Grid lines overlay ── */
   .slide::before {
@@ -313,7 +316,7 @@
 <body>
 
 <div class="progress" id="progress"></div>
-<div class="badge" id="badge">01 / 14</div>
+<div class="badge" id="badge">01 / 16</div>
 
 <div class="slideshow">
 
@@ -321,15 +324,19 @@
        SLIDE 1  Title
        ─────────────────────────────── -->
   <div class="slide slide-1 title-slide active" id="slide-1">
-    <div class="title-tag">Project Share · 2026</div>
+    <div class="title-tag">EC1013701 · Introduction to Artificial Intelligence</div>
     <div class="title-main">AI-Assisted Development</div>
-    <div class="title-sub">VisionTrigger &amp; iTrace</div>
+    <div class="title-sub">VisionTrigger, iTrace &amp; This Presentation</div>
     <div class="accent-line"></div>
+    <div style="font-size:15px; color:#a0a0b8; margin-bottom:20px; letter-spacing:1px;">
+      張銘元 &nbsp;·&nbsp; B11315015
+    </div>
     <div class="title-bullets">
       <div class="pill">Gesture &times; Voice Control</div>
       <div class="pill">Instagram Followback Analysis</div>
-      <div class="pill">Claude Code Collaboration</div>
+      <div class="pill">Claude Code + GitHub Copilot</div>
       <div class="pill">Reverse Engineering</div>
+      <div class="pill">AI-Generated Presentation</div>
     </div>
   </div>
 
@@ -339,19 +346,18 @@
   <div class="slide slide-2 content-slide" id="slide-2">
     <div class="slide-label">Overview</div>
     <div class="accent-line"></div>
-    <h2>Two Projects, One Theme:<br><em>AI as a Development Partner</em></h2>
-    <div class="two-col">
+    <h2>Three Projects, One Theme:<br><em>AI as a Development Partner</em></h2>
+    <div class="three-col">
       <div class="project-card">
         <div class="card-top">
           <span class="card-badge badge-purple">Project 01</span>
         </div>
         <h3>VisionTrigger</h3>
-        <p>Control macOS with hand gestures and voice commands — fully vibe-coded with Claude Code from scratch.</p>
+        <p>Control macOS with hand gestures and voice — fully vibe-coded with Claude Code &amp; GitHub Copilot.</p>
         <div class="tech-row">
           <span class="tech-tag purple">Python</span>
           <span class="tech-tag purple">MediaPipe</span>
           <span class="tech-tag purple">Faster-Whisper</span>
-          <span class="tech-tag purple">OpenCV</span>
         </div>
       </div>
       <div class="project-card">
@@ -359,12 +365,23 @@
           <span class="card-badge badge-green">Project 02</span>
         </div>
         <h3>iTrace</h3>
-        <p>Instagram followback checker — required manual reverse engineering of Instagram's undocumented private API.</p>
+        <p>Instagram followback checker — required manual reverse engineering of Instagram's private API.</p>
         <div class="tech-row">
           <span class="tech-tag green">React + Vite</span>
           <span class="tech-tag green">Vanilla JS</span>
-          <span class="tech-tag green">Instagram API</span>
           <span class="tech-tag green">Postman</span>
+        </div>
+      </div>
+      <div class="project-card">
+        <div class="card-top">
+          <span class="card-badge" style="background:rgba(0,212,255,0.15);color:#7de8ff;border:1px solid rgba(0,212,255,0.4);">Project 03</span>
+        </div>
+        <h3>This Presentation</h3>
+        <p>Entire slide deck designed by AI — given only the codebases as input. Delivered in under 3 minutes.</p>
+        <div class="tech-row">
+          <span class="tech-tag" style="background:rgba(0,212,255,0.1);color:#7de8ff;">Claude Code</span>
+          <span class="tech-tag" style="background:rgba(0,212,255,0.1);color:#7de8ff;">HTML / CSS</span>
+          <span class="tech-tag" style="background:rgba(0,212,255,0.1);color:#7de8ff;">&lt; 3 min</span>
         </div>
       </div>
     </div>
@@ -434,16 +451,21 @@
   <div class="slide slide-6 content-slide" id="slide-6">
     <div class="slide-label">Project 01 · Development</div>
     <div class="accent-line"></div>
-    <h2>VisionTrigger<br><em>— Fully Vibe-Coded with Claude Code</em></h2>
+    <h2>VisionTrigger<br><em>— Vibe-Coded with AI Tools</em></h2>
     <ul class="bullets">
       <li><strong>Architecture design:</strong> single-threaded OpenCV loop + two daemon threads (action + voice)</li>
       <li><strong>Gesture state machine:</strong> REG_IDLE → CAPTURE → NAME → ACTION_TYPE → CONFIRM</li>
       <li><strong>Voice template matching:</strong> <code>{placeholder}</code> regex capture groups with substitution</li>
-      <li><strong>Module split:</strong> gestures / mac_trigger / voice / draw_utils — Claude refactored iteratively</li>
+      <li><strong>Module split:</strong> gestures / mac_trigger / voice / draw_utils — refactored iteratively with AI</li>
       <li><strong>Hot-patching:</strong> new gestures register immediately without restart</li>
     </ul>
-    <div class="callout purple" style="margin-top: 16px;">
-      <p>VisionTrigger is a case where Claude Code could handle <strong>the full stack</strong> — algorithms, UI drawing, config I/O, threading — with minimal human intervention beyond defining the intent.</p>
+    <div class="two-col" style="margin-top: 16px; gap: 16px;">
+      <div class="callout purple" style="margin-top: 0;">
+        <p><strong style="color:#a89fff;">Claude Code</strong> — handled full-stack implementation: algorithms, UI drawing, config I/O, threading, and iterative refactoring.</p>
+      </div>
+      <div class="callout purple" style="margin-top: 0; border-color: #00d4ff; background: rgba(0,212,255,0.05);">
+        <p><strong style="color:#7de8ff;">GitHub Copilot Codex</strong> — inline suggestions and boilerplate generation during active coding sessions.</p>
+      </div>
     </div>
   </div>
 
@@ -590,9 +612,81 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 12  AI Can Do a Lot, But…
+       SLIDE 12  Project 03 — This Presentation
        ─────────────────────────────── -->
   <div class="slide slide-12 content-slide" id="slide-12">
+    <div class="slide-label" style="color:#00d4ff;">Project 03</div>
+    <div class="accent-line" style="background:linear-gradient(90deg,#00d4ff,#6c63ff);"></div>
+    <h2>This Presentation<br><em>— Also Made by AI</em></h2>
+    <ul class="bullets" style="--bullet-color:#00d4ff;">
+      <li style="color:#c8c8e0;"><strong>Input:</strong> only the codebases of VisionTrigger and iTrace — no slides, no outline, no instructions beyond "make a presentation"</li>
+      <li style="color:#c8c8e0;"><strong>Output:</strong> full HTML/CSS slide deck with dark sci-fi design, 14+ slides, narrative arc, and all content</li>
+      <li style="color:#c8c8e0;"><strong>Time taken:</strong> under 3 minutes from prompt to finished presentation</li>
+      <li style="color:#c8c8e0;"><strong>Human work:</strong> zero HTML written — only feedback and small corrections after the fact</li>
+      <li style="color:#c8c8e0;"><strong>Tool used:</strong> Claude Code read every source file, understood the projects, and generated everything</li>
+    </ul>
+    <div class="callout" style="border-color:#00d4ff;background:rgba(0,212,255,0.05);margin-top:16px;">
+      <p style="color:#c8d8f0;">The <strong style="color:#7de8ff;">same AI tool used to build the projects</strong> was also used to present them — the presentation itself is a demonstration of AI capability.</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 13  Project 03 — How it was made
+       ─────────────────────────────── -->
+  <div class="slide slide-13 content-slide" id="slide-13">
+    <div class="slide-label" style="color:#00d4ff;">Project 03 · Process</div>
+    <div class="accent-line" style="background:linear-gradient(90deg,#00d4ff,#6c63ff);"></div>
+    <h2>How the AI Built<br><em>This Presentation</em></h2>
+    <div class="two-col">
+      <div class="steps-row">
+        <div class="step-item">
+          <div class="step-num" style="-webkit-text-fill-color:transparent;background:linear-gradient(135deg,#00d4ff,#6c63ff);-webkit-background-clip:text;background-clip:text;">01</div>
+          <div class="step-text">
+            <strong>Read the codebases</strong>
+            <span>Claude Code scanned CLAUDE.md, all source files, config.yaml, and the iTrace README &amp; App.jsx to understand both projects from scratch.</span>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num" style="-webkit-text-fill-color:transparent;background:linear-gradient(135deg,#00d4ff,#6c63ff);-webkit-background-clip:text;background-clip:text;">02</div>
+          <div class="step-text">
+            <strong>Derived the narrative</strong>
+            <span>Identified the key story arc — VisionTrigger (fully vibecoded) vs iTrace (required human reverse engineering) — without any explicit instruction.</span>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num" style="-webkit-text-fill-color:transparent;background:linear-gradient(135deg,#00d4ff,#6c63ff);-webkit-background-clip:text;background-clip:text;">03</div>
+          <div class="step-text">
+            <strong>Generated full HTML/CSS</strong>
+            <span>Wrote the entire slide deck — dark theme, gradient accents, grid overlay, navigation JS, screenshot placeholders, and all content — in a single pass.</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        <div class="col-card" style="border-color:rgba(0,212,255,0.2);">
+          <h3 style="color:#00d4ff;font-size:14px;margin-bottom:12px;">What AI did</h3>
+          <ul class="bullets" style="font-size:14px;gap:10px;">
+            <li style="color:#a0c8e0;">Read &amp; understood 1000+ lines of code</li>
+            <li style="color:#a0c8e0;">Designed visual theme from scratch</li>
+            <li style="color:#a0c8e0;">Structured a coherent 16-slide narrative</li>
+            <li style="color:#a0c8e0;">Wrote all HTML, CSS, and JavaScript</li>
+          </ul>
+        </div>
+        <div class="col-card" style="border-color:rgba(255,107,53,0.2);">
+          <h3 style="color:#ff8a65;font-size:14px;margin-bottom:12px;">What human did</h3>
+          <ul class="bullets gold" style="font-size:14px;gap:10px;">
+            <li style="color:#c8b080;">Provided the codebases as context</li>
+            <li style="color:#c8b080;">Added name &amp; student ID after the fact</li>
+            <li style="color:#c8b080;">Small text adjustments via chat</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 14  AI Can Do a Lot, But…
+       ─────────────────────────────── -->
+  <div class="slide slide-14 content-slide" id="slide-14">
     <div class="slide-label" style="color: #c084fc;">Key Insight</div>
     <div class="accent-line" style="background: linear-gradient(90deg, #c084fc, #6c63ff);"></div>
     <h2>AI Can Do A Lot —<br><em>But Humans Still Matter</em></h2>
@@ -602,47 +696,54 @@
           <th>Task</th>
           <th>VisionTrigger</th>
           <th>iTrace</th>
+          <th>This PPT</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <td>UI &amp; logic coding</td>
+          <td>Code / markup written</td>
           <td class="yes">AI ✓</td>
-          <td class="yes">AI ✓</td>
-        </tr>
-        <tr>
-          <td>Architecture design</td>
           <td class="yes">AI ✓</td>
           <td class="yes">AI ✓</td>
         </tr>
         <tr>
-          <td>API discovery</td>
-          <td class="yes">Public / Documented</td>
-          <td class="no">Human required ✗</td>
+          <td>Architecture / structure</td>
+          <td class="yes">AI ✓</td>
+          <td class="yes">AI ✓</td>
+          <td class="yes">AI ✓</td>
         </tr>
         <tr>
-          <td>Reverse engineering</td>
+          <td>Content sourcing</td>
+          <td class="partial">Human defined intent</td>
+          <td class="partial">Human defined intent</td>
+          <td class="yes">Read codebase ✓</td>
+        </tr>
+        <tr>
+          <td>Undocumented API / research</td>
           <td class="yes">Not needed</td>
-          <td class="no">Manual with Postman ✗</td>
+          <td class="no">Manual reverse-eng. ✗</td>
+          <td class="yes">Not needed</td>
         </tr>
         <tr>
-          <td>Rate-limit strategy</td>
+          <td>Design &amp; visual layout</td>
           <td class="yes">AI ✓</td>
-          <td class="partial">Human verified numbers</td>
+          <td class="yes">AI ✓</td>
+          <td class="yes">AI ✓</td>
         </tr>
         <tr>
-          <td>Data interpretation</td>
-          <td class="yes">AI ✓</td>
-          <td class="partial">Human + AI together</td>
+          <td>Time to deliver</td>
+          <td class="partial">Days</td>
+          <td class="partial">Days</td>
+          <td class="yes">&lt; 3 minutes</td>
         </tr>
       </tbody>
     </table>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 13  Takeaways
+       SLIDE 15  Takeaways
        ─────────────────────────────── -->
-  <div class="slide slide-13 content-slide" id="slide-13">
+  <div class="slide slide-15 content-slide" id="slide-15">
     <div class="slide-label gold">Reflection</div>
     <div class="accent-line gold"></div>
     <h2><em class="gold">What I Learned</em></h2>
@@ -650,37 +751,39 @@
       <div class="summary-card">
         <div class="card-icon">🤖</div>
         <h3>AI accelerates, not replaces</h3>
-        <p>VisionTrigger was fully vibe-coded — AI handled architecture, modules, state machines. The result: complex software delivered fast.</p>
+        <p>VisionTrigger was fully vibe-coded — Claude Code + GitHub Copilot Codex handled architecture, modules, and state machines. Complex software delivered fast.</p>
       </div>
       <div class="summary-card">
         <div class="card-icon">🧠</div>
         <h3>Some problems need human eyes</h3>
-        <p>iTrace's online mode required observing network traffic, understanding undocumented behavior, and manually validating every assumption.</p>
+        <p>iTrace required observing live network traffic, understanding undocumented API behavior, and manually validating every assumption — AI alone couldn't get there.</p>
       </div>
       <div class="summary-card">
-        <div class="card-icon">🔍</div>
-        <h3>Reverse engineering is a skill</h3>
-        <p>AI helped parse and implement once the API was known — but discovering the API required human curiosity, Postman, and trial and error.</p>
+        <div class="card-icon">✅</div>
+        <h3>Even "full AI" needs verification</h3>
+        <p>This presentation was generated by AI in under 3 minutes — but a human still reviewed every slide, corrected details, and approved the final output.</p>
       </div>
       <div class="summary-card">
         <div class="card-icon">🤝</div>
-        <h3>Best results: human + AI together</h3>
-        <p>Human identifies the unknown, AI implements the known. The combination is stronger than either alone.</p>
+        <h3>Human judgment is the constant</h3>
+        <p>Whether AI does 20% or 100% of the work, a human must verify the result is correct, honest, and actually says what you mean.</p>
       </div>
     </div>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 14  Thank You
+       SLIDE 16  Thank You
        ─────────────────────────────── -->
-  <div class="slide slide-14 closing-slide" id="slide-14">
+  <div class="slide slide-16 closing-slide" id="slide-16">
     <div class="closing-title">Thank You</div>
-    <div class="closing-sub">Two projects. One lesson:<br>AI is the co-pilot — you still need a pilot.</div>
+    <div class="closing-sub">Three projects. One lesson:<br>AI can be the whole crew — but humans must still verify the flight.</div>
     <div class="tag-row">
       <div class="tag tag-purple">VisionTrigger · Gesture + Voice Control</div>
       <div class="tag tag-green">iTrace · Privacy-first Followback Checker</div>
-      <div class="tag tag-blue">Claude Code · AI Pair Programming</div>
+      <div class="tag tag-blue">Claude Code · Full-stack AI Coding</div>
+      <div class="tag tag-blue" style="background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.35);color:#7de8ff;">GitHub Copilot Codex · Inline Suggestions</div>
       <div class="tag tag-orange">Postman · Manual API Reverse Engineering</div>
+      <div class="tag" style="background:rgba(0,212,255,0.12);border:1px solid rgba(0,212,255,0.35);color:#7de8ff;">This PPT · AI-Generated in &lt; 3 min</div>
     </div>
     <div class="github-link">github.com/stanleyowen</div>
   </div>
@@ -691,12 +794,12 @@
 <nav class="nav">
   <button id="prevBtn" onclick="changeSlide(-1)" disabled>&#8592;</button>
   <div class="dots" id="dots"></div>
-  <span class="slide-counter" id="counter">1 / 14</span>
+  <span class="slide-counter" id="counter">1 / 16</span>
   <button id="nextBtn" onclick="changeSlide(1)">&#8594;</button>
 </nav>
 
 <script>
-  const TOTAL = 14;
+  const TOTAL = 16;
   let current = 1;
 
   const dotsEl = document.getElementById('dots');
