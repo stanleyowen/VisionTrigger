@@ -2,16 +2,19 @@
 gestures.py – Hand gesture recognition using MediaPipe Tasks HandLandmarker.
 
 Supported gestures:
-  THUMBS_UP   – thumb extended upward, all fingers curled
-  THUMBS_DOWN – thumb extended downward, all fingers curled
-  OPEN_PALM   – all five fingers extended
-  FIST        – all fingers curled
-  PEACE       – index + middle extended (V sign)
-  POINT       – only index finger extended
-  THREE       – index + middle + ring extended
-  FOUR        – index + middle + ring + pinky extended
-  ROCK        – index + pinky extended (horns)
-  CALL        – thumb + pinky extended (phone sign)
+  THUMBS_UP    – thumb extended upward, all fingers curled
+  THUMBS_DOWN  – thumb extended downward, all fingers curled
+  OPEN_PALM    – all five fingers extended
+  FIST         – all fingers curled
+  PEACE        – index + middle extended (V sign)
+  POINT        – only index finger extended
+  THREE        – index + middle + ring extended
+  FOUR         – index + middle + ring + pinky extended
+  ROCK         – index + pinky extended (horns)
+  CALL         – thumb + pinky extended (phone sign)
+  OK           – thumb + index extended (L-shape)
+  THREE_THUMB  – thumb + index + middle extended
+  SPREAD       – thumb + index + middle + ring extended (no pinky)
 """
 
 import mediapipe as mp
@@ -33,6 +36,9 @@ BUILTIN_GESTURES: dict[str, tuple] = {
     "FOUR":        (False, True,  True,  True,  True),
     "ROCK":        (False, True,  False, False, True),
     "CALL":        (True,  False, False, False, True),
+    "OK":          (True,  True,  False, False, False),
+    "THREE_THUMB": (True,  True,  True,  False, False),
+    "SPREAD":      (True,  True,  True,  True,  False),
 }
 
 _BUILTIN_GESTURE_MAP: dict[tuple, str] = {
