@@ -35,12 +35,14 @@
   /* ── Slide backgrounds ── */
   .slide-1  { background: radial-gradient(ellipse at 30% 50%, #1a0a3e 0%, #0a0a0f 70%); }
   .slide-2  { background: radial-gradient(ellipse at 60% 40%, #0f1a3e 0%, #0a0a0f 70%); }
+  /* VisionTrigger (purple) — slides 3-6 */
   .slide-3, .slide-4, .slide-5, .slide-6
             { background: radial-gradient(ellipse at 70% 30%, #0d1a3e 0%, #0a0a0f 70%); }
-  .slide-7, .slide-8, .slide-9, .slide-10
+  /* iTrace (green) — slides 7-9, 11 */
+  .slide-7, .slide-8, .slide-9, .slide-11
             { background: radial-gradient(ellipse at 30% 70%, #0a2a1a 0%, #0a0a0f 70%); }
-  .slide-11 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
-  .slide-12 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
+  .slide-10 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
+  /* Project 03 (cyan-teal) — slides 12-13 */
   .slide-12, .slide-13
             { background: radial-gradient(ellipse at 65% 35%, #00142a 0%, #0a0a0f 70%); }
   .slide-14 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
@@ -394,70 +396,51 @@
     <div class="slide-label">Project 01</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— What is it?</em></h2>
-    <ul class="bullets">
-      <li>Control macOS using <strong>hand gestures</strong> detected through your MacBook camera</li>
-      <li>Triggers <strong>Shortcuts</strong>, <strong>AppleScript</strong>, or any <strong>shell command</strong></li>
-      <li>Also supports <strong>voice commands</strong> via Faster-Whisper (local, no internet)</li>
-      <li>Fully <strong>customizable</strong> gestures and voice-to-action mappings via <code>config.yaml</code></li>
-      <li>Register new gestures <strong>in-app</strong> — no restart needed</li>
-    </ul>
-  </div>
-
-  <!-- ───────────────────────────────
-       SLIDE 4  VisionTrigger — Screenshots
-       ─────────────────────────────── -->
-  <div class="slide slide-4 content-slide" id="slide-4">
-    <div class="slide-label">Project 01 · Demo</div>
-    <div class="accent-line"></div>
-    <h2>VisionTrigger<br><em>— In Action</em></h2>
-    <div class="screenshot-grid two">
-      <div>
-        <div class="img-placeholder img-wide">
-          <div class="img-icon">📷</div>
-          <div class="img-title">Screenshot 1 — Gesture Detection</div>
-          <div class="img-hint">App window with camera feed showing hand landmark skeleton overlay.<br>A recognized gesture (e.g. ✌️ Peace Sign) with action label visible on screen.</div>
-        </div>
-      </div>
-      <div>
-        <div class="img-placeholder img-wide">
-          <div class="img-icon">📋</div>
-          <div class="img-title">Screenshot 2 — Gesture List Panel</div>
-          <div class="img-hint">The in-app overlay showing all configured gestures and their mapped actions.<br>Press <kbd>g</kbd> in the app to open this panel.</div>
-        </div>
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:40px;align-items:flex-start;width:100%;">
+      <ul class="bullets" style="font-size:16px;">
+        <li><span>Control macOS using <strong>hand gestures</strong> detected through your MacBook camera</span></li>
+        <li><span>Triggers <strong>Shortcuts</strong>, <strong>AppleScript</strong>, or any <strong>shell command</strong></span></li>
+        <li><span>Also supports <strong>voice commands</strong> via Faster-Whisper (local, no internet)</span></li>
+        <li><span>Fully <strong>customizable</strong> gestures and voice-to-action mappings via <code>config.yaml</code></span></li>
+        <li><span>Register new gestures <strong>in-app</strong> — no restart needed</span></li>
+      </ul>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <img src="sources/gesture-detection.png" alt="Gesture Detection" style="width:100%;border-radius:10px;object-fit:contain;max-height:195px;">
+        <img src="sources/gesture-list.png" alt="Gesture List Panel" style="width:100%;border-radius:10px;object-fit:contain;max-height:195px;">
       </div>
     </div>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 5  VisionTrigger — AI Tech
+       SLIDE 4  VisionTrigger — AI Tech
        ─────────────────────────────── -->
-  <div class="slide slide-5 content-slide" id="slide-5">
+  <div class="slide slide-4 content-slide" id="slide-4">
     <div class="slide-label">Project 01 · AI Technology</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— AI at the Core</em></h2>
     <ul class="bullets">
-      <li><strong>MediaPipe HandLandmarker</strong> — Google's AI model detects 21 hand joint points every frame</li>
-      <li>Finger state encoded as a <strong>(thumb, index, middle, ring, pinky)</strong> boolean tuple → gesture lookup</li>
-      <li><strong>THUMBS_UP vs DOWN</strong> disambiguated by thumb-tip y-coordinate — subtle geometry trick</li>
-      <li><strong>Faster-Whisper</strong> — optimized Whisper model for real-time speech-to-text transcription</li>
-      <li>RMS-based Voice Activity Detection → <strong>no constant mic streaming</strong>, only activates on sound</li>
-      <li>All AI inference runs <strong>100% locally</strong> — no cloud, no latency, no privacy concern</li>
+      <li><span><strong>MediaPipe HandLandmarker</strong> — Google's AI model detects 21 hand joint points every frame</span></li>
+      <li><span>Finger state encoded as a <strong>(thumb, index, middle, ring, pinky)</strong> boolean tuple → gesture lookup</span></li>
+      <li><span><strong>THUMBS_UP vs DOWN</strong> disambiguated by thumb-tip y-coordinate — subtle geometry trick</span></li>
+      <li><span><strong>Faster-Whisper</strong> — optimized Whisper model for real-time speech-to-text transcription</span></li>
+      <li><span>RMS-based Voice Activity Detection → <strong>no constant mic streaming</strong>, only activates on sound</span></li>
+      <li><span>All AI inference runs <strong>100% locally</strong> — no cloud, no latency, no privacy concern</span></li>
     </ul>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 6  VisionTrigger — Vibecoded with Claude
+       SLIDE 5  VisionTrigger — Vibecoded with Claude
        ─────────────────────────────── -->
-  <div class="slide slide-6 content-slide" id="slide-6">
+  <div class="slide slide-5 content-slide" id="slide-5">
     <div class="slide-label">Project 01 · Development</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— Vibe-Coded with AI Tools</em></h2>
     <ul class="bullets">
-      <li><strong>Architecture design:</strong> single-threaded OpenCV loop + two daemon threads (action + voice)</li>
-      <li><strong>Gesture state machine:</strong> REG_IDLE → CAPTURE → NAME → ACTION_TYPE → CONFIRM</li>
-      <li><strong>Voice template matching:</strong> <code>{placeholder}</code> regex capture groups with substitution</li>
-      <li><strong>Module split:</strong> gestures / mac_trigger / voice / draw_utils — refactored iteratively with AI</li>
-      <li><strong>Hot-patching:</strong> new gestures register immediately without restart</li>
+      <li><span><strong>Architecture design:</strong> single-threaded OpenCV loop + two daemon threads (action + voice)</span></li>
+      <li><span><strong>Gesture state machine:</strong> REG_IDLE → CAPTURE → NAME → ACTION_TYPE → CONFIRM</span></li>
+      <li><span><strong>Voice template matching:</strong> <code>{placeholder}</code> regex capture groups with substitution</span></li>
+      <li><span><strong>Module split:</strong> gestures / mac_trigger / voice / draw_utils — refactored iteratively with AI</span></li>
+      <li><span><strong>Hot-patching:</strong> new gestures register immediately without restart</span></li>
     </ul>
     <div class="two-col" style="margin-top: 16px; gap: 16px;">
       <div class="callout purple" style="margin-top: 0;">
@@ -470,70 +453,59 @@
   </div>
 
   <!-- ───────────────────────────────
+       SLIDE 6  VisionTrigger — Live Demo
+       ─────────────────────────────── -->
+  <div class="slide slide-6" id="slide-6" style="text-align:center;gap:0;">
+    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#6c63ff;font-weight:600;margin-bottom:20px;">Project 01 · Live Demo</div>
+    <div style="font-size:100px;margin-bottom:24px;line-height:1;">🖐️</div>
+    <div style="font-size:54px;font-weight:900;background:linear-gradient(135deg,#fff 30%,#6c63ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">VisionTrigger</div>
+    <div style="font-size:22px;color:#00d4ff;font-weight:300;margin-bottom:40px;">Live Gesture &amp; Voice Demo</div>
+    <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
+      <div style="padding:12px 24px;border:1px solid rgba(108,99,255,0.4);border-radius:12px;background:rgba(108,99,255,0.08);font-size:14px;color:#a8a8c8;">✌️ Gesture recognition</div>
+      <div style="padding:12px 24px;border:1px solid rgba(108,99,255,0.4);border-radius:12px;background:rgba(108,99,255,0.08);font-size:14px;color:#a8a8c8;">🎙️ Voice commands</div>
+      <div style="padding:12px 24px;border:1px solid rgba(108,99,255,0.4);border-radius:12px;background:rgba(108,99,255,0.08);font-size:14px;color:#a8a8c8;">⚡ Real-time action trigger</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
        SLIDE 7  iTrace — What is it
        ─────────────────────────────── -->
   <div class="slide slide-7 content-slide" id="slide-7">
     <div class="slide-label green">Project 02</div>
     <div class="accent-line green"></div>
     <h2>iTrace<br><em class="green">— What is it?</em></h2>
-    <ul class="bullets green">
-      <li><strong>Instagram followback checker</strong> — find who you follow but who doesn't follow back</li>
-      <li>Live at <strong>itrace.stanleyowen.com</strong></li>
-      <li><strong>Online mode:</strong> script injected into Instagram DevTools console, fetches live data via Instagram's internal API and renders a floating overlay UI on top of instagram.com</li>
-      <li><strong>Offline mode:</strong> upload Instagram data export JSON files, compare locally — no network calls</li>
-      <li>All data processed <strong>client-side</strong> — no backend, no accounts, full privacy</li>
-      <li>Supports <strong>bulk unfollow</strong> with rate-limit-safe throttling</li>
-    </ul>
-  </div>
-
-  <!-- ───────────────────────────────
-       SLIDE 8  iTrace — Screenshots
-       ─────────────────────────────── -->
-  <div class="slide slide-8 content-slide" id="slide-8">
-    <div class="slide-label green">Project 02 · Demo</div>
-    <div class="accent-line green"></div>
-    <h2>iTrace<br><em class="green">— In Action</em></h2>
-    <div class="screenshot-grid three">
-      <div>
-        <div class="img-placeholder green" style="min-height: 170px;">
-          <div class="img-icon">🌐</div>
-          <div class="img-title">Screenshot 3 — Website</div>
-          <div class="img-hint">iTrace homepage at itrace.stanleyowen.com — showing the Online/Offline mode toggle.</div>
-        </div>
-      </div>
-      <div>
-        <div class="img-placeholder green" style="min-height: 170px;">
-          <div class="img-icon">🔧</div>
-          <div class="img-title">Screenshot 4 — Script Panel</div>
-          <div class="img-hint">Online mode: script panel with delay/jitter settings, ready to copy and run in DevTools.</div>
-        </div>
-      </div>
-      <div>
-        <div class="img-placeholder green" style="min-height: 170px;">
-          <div class="img-icon">📊</div>
-          <div class="img-title">Screenshot 5 — Overlay on Instagram</div>
-          <div class="img-hint">The iTrace floating panel injected <em>directly on top of instagram.com</em> showing the non-followers list with unfollow buttons.</div>
-        </div>
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:40px;align-items:flex-start;width:100%;">
+      <ul class="bullets green" style="font-size:16px;">
+        <li><span><strong>Instagram followback checker</strong> — find who you follow but who doesn't follow back</span></li>
+        <li><span>Live at <strong>itrace.stanleyowen.com</strong></span></li>
+        <li><span><strong>Online mode:</strong> script injected into Instagram DevTools console, fetches live data via Instagram's internal API and renders a floating overlay UI on top of instagram.com</span></li>
+        <li><span><strong>Offline mode:</strong> upload Instagram data export JSON files, compare locally — no network calls</span></li>
+        <li><span>All data processed <strong>client-side</strong> — no backend, no accounts, full privacy</span></li>
+        <li><span>Supports <strong>bulk unfollow</strong> with rate-limit-safe throttling</span></li>
+      </ul>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <img src="sources/itrace-website.png" alt="iTrace Website" style="width:100%;border-radius:10px;object-fit:contain;max-height:195px;">
+        <img src="sources/script-overlay.png" alt="Script Panel &amp; Instagram Overlay" style="width:100%;border-radius:10px;object-fit:contain;max-height:195px;">
       </div>
     </div>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 9  iTrace — Tech Architecture
+       SLIDE 8  iTrace — Tech Architecture
        ─────────────────────────────── -->
-  <div class="slide slide-9 content-slide" id="slide-9">
+  <div class="slide slide-8 content-slide" id="slide-8">
     <div class="slide-label green">Project 02 · Architecture</div>
     <div class="accent-line green"></div>
     <h2>iTrace<br><em class="green">— Technical Architecture</em></h2>
     <div class="two-col">
       <div>
         <ul class="bullets green" style="font-size: 16px;">
-          <li><strong>Frontend:</strong> React + Vite (JavaScript 79.7%)</li>
-          <li><strong>Offline mode:</strong> upload Instagram export JSON → local Set-difference algorithm</li>
-          <li><strong>Online mode:</strong> injected vanilla JS overlay — no frameworks, runs anywhere</li>
-          <li><strong>Pagination:</strong> walks all pages of <code>/api/v1/friendships/</code> with throttle + retry</li>
-          <li><strong>Rate limiting:</strong> configurable delay, jitter, and 5-cycle cooldown</li>
-          <li><strong>Unfollow:</strong> POST to <code>/web/friendships/{id}/unfollow/</code> with CSRF token</li>
+          <li><span><strong>Frontend:</strong> React + Vite (JavaScript 79.7%)</span></li>
+          <li><span><strong>Offline mode:</strong> upload Instagram export JSON → local Set-difference algorithm</span></li>
+          <li><span><strong>Online mode:</strong> injected vanilla JS overlay — no frameworks, runs anywhere</span></li>
+          <li><span><strong>Pagination:</strong> walks all pages of <code>/api/v1/friendships/</code> with throttle + retry</span></li>
+          <li><span><strong>Rate limiting:</strong> configurable delay, jitter, and 5-cycle cooldown</span></li>
+          <li><span><strong>Unfollow:</strong> POST to <code>/web/friendships/{id}/unfollow/</code> with CSRF token</span></li>
         </ul>
       </div>
       <div>
@@ -552,18 +524,18 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 10  The Challenge — Instagram Private API
+       SLIDE 9  The Challenge — Instagram Private API
        ─────────────────────────────── -->
-  <div class="slide slide-10 content-slide" id="slide-10">
+  <div class="slide slide-9 content-slide" id="slide-9">
     <div class="slide-label green">Project 02 · The Hard Part</div>
     <div class="accent-line green"></div>
     <h2>iTrace<br><em class="green">— Instagram's Undocumented Private API</em></h2>
     <ul class="bullets green">
-      <li>Instagram has <strong>no public API</strong> for reading your own followers/following list programmatically</li>
-      <li>The app calls an <strong>internal API</strong> not documented anywhere: <code>/api/v1/friendships/followers/</code></li>
-      <li>Required identifying the right <strong>headers</strong> (e.g. <code>x-ig-app-id: 936619743392459</code>), auth cookies, and pagination parameters</li>
-      <li>The <strong>unfollow endpoint</strong> needed CSRF token extraction from cookies + correct POST format</li>
-      <li>AI alone could not figure this out — the API behavior had to be <strong>observed and verified manually</strong></li>
+      <li><span>Instagram has <strong>no public API</strong> for reading your own followers/following list programmatically</span></li>
+      <li><span>The app calls an <strong>internal API</strong> not documented anywhere: <code>/api/v1/friendships/followers/</code></span></li>
+      <li><span>Required identifying the right <strong>headers</strong> (e.g. <code>x-ig-app-id: 936619743392459</code>), auth cookies, and pagination parameters</span></li>
+      <li><span>The <strong>unfollow endpoint</strong> needed CSRF token extraction from cookies + correct POST format</span></li>
+      <li><span>AI alone could not figure this out — the API behavior had to be <strong>observed and verified manually</strong></span></li>
     </ul>
     <div class="callout green" style="margin-top: 16px;">
       <p>This is where <strong>human judgment became essential</strong> — not just writing code, but understanding a system that wasn't designed to be understood from the outside.</p>
@@ -571,9 +543,9 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 11  Reverse Engineering Process
+       SLIDE 10  Reverse Engineering Process
        ─────────────────────────────── -->
-  <div class="slide slide-11 content-slide" id="slide-11">
+  <div class="slide slide-10 content-slide" id="slide-10">
     <div class="slide-label orange">Reverse Engineering</div>
     <div class="accent-line orange"></div>
     <h2>How I Cracked It:<br><em class="orange">Postman + Manual Analysis</em></h2>
@@ -602,12 +574,23 @@
         </div>
       </div>
       <div>
-        <div class="img-placeholder orange img-wide">
-          <div class="img-icon">🔬</div>
-          <div class="img-title">Screenshot 6 — Postman</div>
-          <div class="img-hint">Postman showing the Instagram <code>/api/v1/friendships/followers/</code> endpoint.<br>Include: request headers (x-ig-app-id), response body with users array, and pagination fields (next_max_id).</div>
-        </div>
+        <img src="sources/postman.png" alt="Postman — Instagram API endpoint" style="width:100%;border-radius:12px;object-fit:contain;max-height:280px;">
       </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 11  iTrace — Live Demo
+       ─────────────────────────────── -->
+  <div class="slide slide-11" id="slide-11" style="text-align:center;gap:0;">
+    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#00c96e;font-weight:600;margin-bottom:20px;">Project 02 · Live Demo</div>
+    <div style="font-size:100px;margin-bottom:24px;line-height:1;">📊</div>
+    <div style="font-size:54px;font-weight:900;background:linear-gradient(135deg,#fff 30%,#00c96e 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">iTrace</div>
+    <div style="font-size:22px;color:#00d4ff;font-weight:300;margin-bottom:40px;">Live Followback Analysis Demo</div>
+    <div style="display:flex;gap:20px;justify-content:center;flex-wrap:wrap;">
+      <div style="padding:12px 24px;border:1px solid rgba(0,201,110,0.4);border-radius:12px;background:rgba(0,201,110,0.08);font-size:14px;color:#a8c8a8;">🌐 Online mode — DevTools injection</div>
+      <div style="padding:12px 24px;border:1px solid rgba(0,201,110,0.4);border-radius:12px;background:rgba(0,201,110,0.08);font-size:14px;color:#a8c8a8;">📂 Offline mode — JSON upload</div>
+      <div style="padding:12px 24px;border:1px solid rgba(0,201,110,0.4);border-radius:12px;background:rgba(0,201,110,0.08);font-size:14px;color:#a8c8a8;">🔍 Non-follower list + unfollow</div>
     </div>
   </div>
 
