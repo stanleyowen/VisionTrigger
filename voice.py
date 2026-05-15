@@ -26,7 +26,7 @@ Expected config (config.yaml):
   settings:
     voice:
       enabled: false
-      wake_word: "hey vision"
+      wake_word: "hey"
       language: "en"
       model: "base.en"
       silence_threshold: 0.01

@@ -536,7 +536,7 @@ settings:
   show_fps: true
   voice:
     enabled: false
-    wake_word: hey vision
+    wake_word: hey
     language: en
     model: small.en
     silence_threshold: 0.01
