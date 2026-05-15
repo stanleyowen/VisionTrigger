@@ -208,7 +208,7 @@ def draw_overlay(
         cv2.rectangle(flash, (0, 0), (w, h), _GREEN, -1)
         cv2.addWeighted(flash, 0.15, frame, 0.85, 0, frame)
         label = action_label or gesture
-        _put(frame, f"✓ {label}", (w // 2 - 120, h // 2 + 10),
+        _put(frame, f"OK  {label}", (w // 2 - 120, h // 2 + 10),
              scale=1.2, color=_GREEN, thickness=3)
 
 
@@ -281,7 +281,7 @@ def draw_gestures_list_overlay(
         label  = cfg.get("label") or name
         action = cfg.get("action", "?")
         detail = cfg.get("command") or cfg.get("script") or cfg.get("name") or ""
-        detail_short = detail[:30] + ("…" if len(detail) > 30 else "")
+        detail_short = detail[:30] + ("..." if len(detail) > 30 else "")
         action_color = {
             "shell": _GREEN, "applescript": _YELLOW, "shortcut": _CYAN,
         }.get(action, _WHITE)
@@ -307,7 +307,7 @@ def draw_gestures_list_overlay(
 
         # ── Two-line text (label on top, action+detail below) ────────────────
         row_color = _CYAN if is_selected else _WHITE
-        prefix = "▶ " if is_selected else ""
+        prefix = "> " if is_selected else ""
         tx = lx + icon_w
         _put(frame, f"{prefix}{label}", (tx, row_y + 16), scale=0.55, color=row_color)
         _put(frame, f"[{action}]",      (tx, row_y + 34), scale=0.48, color=action_color)
@@ -320,14 +320,14 @@ def draw_gestures_list_overlay(
             last = last_trigger_ts.get(name, 0.0)
             remaining = cd - (now - last)
             if remaining > 0:
-                _put(frame, f"⟳{remaining:.1f}s", (tx + 200, row_y + 34),
+                _put(frame, f"cd:{remaining:.1f}s", (tx + 200, row_y + 34),
                      scale=0.42, color=_ORANGE, thickness=1)
 
         row_y += row_h
 
     if len(rows) > max_visible:
         _put(frame,
-             f"  … {len(rows)} total  ({scroll_top+1}–{min(scroll_top+max_visible, len(rows))})",
+             f"  ... {len(rows)} total  ({scroll_top+1}-{min(scroll_top+max_visible, len(rows))})",
              (lx, row_y + 4), scale=0.44, color=_GREY, thickness=1)
         row_y += footer_h - 28
 
@@ -547,7 +547,7 @@ def draw_file_pick_overlay(
 
     folder_str = str(SCRIPTS_DIR)
     if len(folder_str) > 60:
-        folder_str = "…" + folder_str[-57:]
+        folder_str = "..." + folder_str[-57:]
     _put(frame, f"scripts/: {folder_str}", (lx, y),
          scale=0.44, color=_GREY, thickness=1)
     y += 28
@@ -555,7 +555,7 @@ def draw_file_pick_overlay(
     # Browse + Open-in-Finder buttons
     browse_rect = (lx, y, lx + 148, y + 32)
     finder_rect = (lx + 158, y, lx + 158 + 160, y + 32)
-    draw_button(frame, browse_rect, "Browse Files…",      mouse_pos)
+    draw_button(frame, browse_rect, "Browse Files...",     mouse_pos)
     draw_button(frame, finder_rect, "Open scripts/ folder", mouse_pos)
     rects["browse"] = browse_rect
     rects["finder"] = finder_rect
@@ -565,7 +565,7 @@ def draw_file_pick_overlay(
     dot_x, dot_y = lx + 6, y + 6
     if watching:
         cv2.circle(frame, (dot_x, dot_y), 5, _GREEN, -1)
-        _put(frame, "Watching for new files — drag files to scripts/ in Finder",
+        _put(frame, "Watching for new files - drag files to scripts/ in Finder",
              (lx + 18, y + 10), scale=0.45, color=_GREEN, thickness=1)
     else:
         cv2.circle(frame, (dot_x, dot_y), 5, _GREY, 1)
@@ -607,11 +607,11 @@ def draw_file_pick_overlay(
                 cv2.rectangle(frame, (px1 + 8, y - 4), (px2 - 8, y + row_h - 6),
                               (32, 32, 50), -1)
             color  = _CYAN if selected else _WHITE
-            prefix = "▶  " if selected else "   "
+            prefix = ">  " if selected else "   "
             _put(frame, f"{prefix}{fp.name}", (lx, y + 12), scale=0.62, color=color)
             y += row_h
         if len(file_list) > max_visible:
-            _put(frame, f"  … {len(file_list)} files total",
+            _put(frame, f"  ... {len(file_list)} files total",
                  (lx, y + 4), scale=0.44, color=_GREY, thickness=1)
     return rects
 
@@ -677,16 +677,16 @@ def draw_voice_status(frame, status: str, status_text: str, wake_word: str) -> N
     }.get(status, _WHITE)
 
     label_for = {
-        "listening":    f"listening for \"{wake_word}\"…",
-        "loading":      status_text or "loading model…",
-        "transcribing": "transcribing…",
+        "listening":    f"listening for \"{wake_word}\"...",
+        "loading":      status_text or "loading model...",
+        "transcribing": "transcribing...",
         "heard":        f"heard: {status_text}" if status_text else "heard",
         "executing":    f"running: {status_text}" if status_text else "running",
         "error":        f"error: {status_text}" if status_text else "error",
     }
     msg = label_for.get(status, status)
     if len(msg) > 70:
-        msg = msg[:67] + "…"
+        msg = msg[:67] + "..."
     _put(frame, f"VOICE  {msg}", (10, 92), scale=0.55, color=color, thickness=1)
 
 
@@ -751,15 +751,15 @@ def draw_camera_selector(
         cv2.rectangle(frame, (w // 2 - 310, y - 28), (w // 2 + 310, y + 20), border, 1)
 
         name_color = _CYAN if selected else _WHITE
-        prefix = "▶  " if selected else "   "
+        prefix = ">  " if selected else "   "
         _put(frame, f"{prefix}{idx}:  {name}",
              (w // 2 - 298, y), scale=0.70, color=name_color)
 
         if avail is True:
-            _put(frame, "● available",
+            _put(frame, "* available",
                  (w // 2 + 148, y), scale=0.52, color=_GREEN, thickness=1)
         elif avail is False:
-            _put(frame, "○ unavailable",
+            _put(frame, "- unavailable",
                  (w // 2 + 148, y), scale=0.52, color=_GREY, thickness=1)
     return rects
 
@@ -922,10 +922,10 @@ def draw_voice_commands_panel(
             "shell": _GREEN, "applescript": _YELLOW, "shortcut": _CYAN,
         }.get(action, _WHITE)
         row_color = _CYAN if is_selected else _WHITE
-        prefix = "▶ " if is_selected else ""
+        prefix = "> " if is_selected else ""
         _put(frame, f"{prefix}{name}", (lx, row_y + 14), scale=0.52, color=row_color)
         _put(frame, f"[{action}]", (lx + 190, row_y + 14), scale=0.45, color=action_color)
-        phrase_short = first_phrase[:38] + ("…" if len(first_phrase) > 38 else "")
+        phrase_short = first_phrase[:38] + ("..." if len(first_phrase) > 38 else "")
         _put(frame, phrase_short, (lx, row_y + 30), scale=0.40, color=_GREY, thickness=1)
 
         row_y += row_h
@@ -933,11 +933,11 @@ def draw_voice_commands_panel(
     # Scroll indicators
     if len(rows) > max_visible:
         if scroll_top > 0:
-            _put(frame, "▲", (px2 - 20, sep_y + 16), scale=0.5, color=_GREY, thickness=1)
+            _put(frame, "^", (px2 - 20, sep_y + 16), scale=0.5, color=_GREY, thickness=1)
         if scroll_top + max_visible < len(rows):
-            _put(frame, "▼", (px2 - 20, py2 - 12), scale=0.5, color=_GREY, thickness=1)
+            _put(frame, "v", (px2 - 20, py2 - 12), scale=0.5, color=_GREY, thickness=1)
         _put(frame,
-             f"j/k to scroll  ({scroll_top+1}–{min(scroll_top+max_visible, len(rows))} of {n})",
+             f"j/k to scroll  ({scroll_top+1}-{min(scroll_top+max_visible, len(rows))} of {n})",
              (lx, py2 - 12), scale=0.40, color=_GREY, thickness=1)
 
     return rects
