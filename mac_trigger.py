@@ -9,6 +9,7 @@ Supported action types (set in config.yaml):
 
 import logging
 import subprocess
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -78,14 +79,24 @@ class MacTrigger:
             return False, msg
 
     def _run_applescript(self, script: str) -> tuple[bool, str]:
-        """Execute an AppleScript snippet with osascript."""
+        """Execute an AppleScript.
+
+        If 'script' is a path to an existing .scpt or .scptd file, run it by
+        path (osascript /path/to/file). Otherwise treat it as inline source
+        text (osascript -e ...).
+        """
         if not script:
             msg = "AppleScript is empty"
             logger.error(msg)
             return False, msg
+        p = Path(script)
+        if p.suffix.lower() in (".scpt", ".scptd") and p.exists():
+            cmd = ["osascript", str(p)]
+        else:
+            cmd = ["osascript", "-e", script]
         try:
             result = subprocess.run(
-                ["osascript", "-e", script],
+                cmd,
                 capture_output=True,
                 text=True,
                 timeout=_TIMEOUT,

@@ -45,27 +45,18 @@ gestures:
     script: tell application "System Events" to key code 144
     label: Brightness Up
     cooldown: 0.3
-  FOUR:
+custom_gestures:
+  BRIGHTNESS DOWN:
+    fingers:
+    - false
+    - true
+    - true
+    - true
+    - true
     action: applescript
-    script: tell application "System Events" to key code 145
     label: Brightness Down
-    cooldown: 0.3
-  OK:
-    action: applescript
-    script: tell application "Music" to playpause
-    label: Play/Pause
-    cooldown: 0.8
-  THREE_THUMB:
-    action: applescript
-    script: tell application "Music" to next track
-    label: Next Track
-    cooldown: 0.8
-  SPREAD:
-    action: applescript
-    script: tell application "Music" to previous track
-    label: Prev Track
-    cooldown: 0.8
-custom_gestures: {}
+    cooldown: 2.0
+    script: /Users/stanley/Documents/GitHub/VisionTrigger/scripts/BrightnessDown.scpt
 voice_commands:
   OPEN_APP:
     phrases:

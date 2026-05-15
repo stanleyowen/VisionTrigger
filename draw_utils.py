@@ -541,8 +541,11 @@ def draw_file_pick_overlay(
     _put(frame, title, (lx, y), scale=0.72, color=_ORANGE)
 
     cancel_rect = (px2 - 88, py1 + 8, px2 - 8, py1 + 32)
-    draw_button(frame, cancel_rect, "Cancel", mouse_pos)
+    back_rect   = (px2 - 174, py1 + 8, px2 - 96, py1 + 32)
+    draw_button(frame, cancel_rect, "Cancel",  mouse_pos)
+    draw_button(frame, back_rect,   "< Back",  mouse_pos)
     rects["cancel"] = cancel_rect
+    rects["back"]   = back_rect
     y += 34
 
     folder_str = str(SCRIPTS_DIR)
@@ -578,7 +581,7 @@ def draw_file_pick_overlay(
 
     # File list
     if not file_list:
-        ext_hint = (".applescript"
+        ext_hint = (".scpt / .scptd / .applescript"
                     if action_type == "applescript" else ".sh / .bash / .zsh")
         _put(frame, "No script files in scripts/ yet.", (lx, y), color=_YELLOW)
         y += 28

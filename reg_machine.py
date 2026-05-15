@@ -33,9 +33,14 @@ class RegState(Enum):
 # ---------------------------------------------------------------------------
 
 _SCRIPT_EXTS: dict[str, set[str]] = {
-    "applescript": {".applescript"},
+    "applescript": {".scpt", ".scptd", ".applescript"},
     "shell": {".sh", ".bash", ".zsh", ".command"},
 }
+
+
+def _is_script_entry(f: Path, valid_exts: set) -> bool:
+    """True for regular script files and .scptd bundle directories."""
+    return f.suffix.lower() in valid_exts and (f.is_file() or f.suffix.lower() == ".scptd")
 
 
 def _get_script_files(action_type: str) -> list:
@@ -44,7 +49,7 @@ def _get_script_files(action_type: str) -> list:
     exts = _SCRIPT_EXTS.get(action_type, set())
     return sorted(
         f for f in SCRIPTS_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in exts
+        if _is_script_entry(f, exts)
     )
 
 
@@ -55,7 +60,7 @@ def _browse_and_copy(action_type: str) -> list:
     No tkinter or extra dependencies required.
     """
     if action_type == "applescript":
-        ext_filter = '{"applescript"}'
+        ext_filter = '{"scpt", "scptd", "applescript"}'
     else:
         ext_filter = '{"sh", "bash", "zsh", "command"}'
 
@@ -84,14 +89,18 @@ def _browse_and_copy(action_type: str) -> list:
     copied: list = []
     for line in result.stdout.splitlines():
         p = Path(line.strip())
-        if p.suffix.lower() in valid and p.exists():
-            dest = SCRIPTS_DIR / p.name
-            try:
+        if not _is_script_entry(p, valid):
+            continue
+        dest = SCRIPTS_DIR / p.name
+        try:
+            if p.suffix.lower() == ".scptd":
+                shutil.copytree(p, dest, dirs_exist_ok=True)
+            else:
                 shutil.copy2(p, dest)
-                copied.append(dest)
-                logger.info("Copied '%s' → scripts/", p.name)
-            except Exception as exc:
-                logger.error("Cannot copy %s: %s", p.name, exc)
+            copied.append(dest)
+            logger.info("Copied '%s' to scripts/", p.name)
+        except Exception as exc:
+            logger.error("Cannot copy %s: %s", p.name, exc)
     return copied
 
 
@@ -120,7 +129,7 @@ class _FolderWatcher:
         try:
             self._seen: set = {
                 f for f in SCRIPTS_DIR.iterdir()
-                if f.is_file() and f.suffix.lower() in valid
+                if _is_script_entry(f, valid)
             }
         except Exception:
             self._seen = set()
@@ -133,7 +142,7 @@ class _FolderWatcher:
             try:
                 current = {
                     f for f in SCRIPTS_DIR.iterdir()
-                    if f.is_file() and f.suffix.lower() in valid
+                    if _is_script_entry(f, valid)
                 }
                 new = current - self._seen
                 if new:
@@ -241,12 +250,16 @@ class RegistrationStateMachine:
 
     def go_back(self):
         """Navigate to the previous step. No-op if already at IDLE."""
+        confirm_prev = (
+            RegState.FILE_PICK if self.action_type in ("shell", "applescript")
+            else RegState.ACTION_DETAIL
+        )
         _prev = {
             RegState.NAME:          RegState.CAPTURE,
             RegState.ACTION_TYPE:   RegState.NAME if not self.is_edit else RegState.IDLE,
             RegState.ACTION_DETAIL: RegState.ACTION_TYPE,
             RegState.FILE_PICK:     RegState.ACTION_TYPE,
-            RegState.CONFIRM:       RegState.ACTION_TYPE,
+            RegState.CONFIRM:       confirm_prev,
         }
         prev = _prev.get(self.state, RegState.IDLE)
         if prev == RegState.IDLE:

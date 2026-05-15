@@ -633,7 +633,9 @@ def main():
                     reg.file_cursor = 0
                     reg.state       = RegState.FILE_PICK
             elif reg.state == RegState.FILE_PICK:
-                if _hit(_file_btns.get("browse", ()), click):
+                if _hit(_file_btns.get("back", ()), click):
+                    reg.go_back()
+                elif _hit(_file_btns.get("browse", ()), click):
                     new_files = _browse_and_copy(reg.action_type)
                     if new_files:
                         reg.file_list   = _get_script_files(reg.action_type)
@@ -656,15 +658,21 @@ def main():
                                 break
                     if sel_idx is not None and sel_idx < len(reg.file_list):
                         chosen_file = reg.file_list[sel_idx]
-                        try:
-                            content = chosen_file.read_text(encoding="utf-8").strip()
-                        except Exception as exc:
-                            logger.error("Cannot read %s: %s", chosen_file.name, exc)
-                        else:
-                            reg.action_detail    = content
+                        if chosen_file.suffix.lower() in (".scpt", ".scptd"):
+                            reg.action_detail     = str(chosen_file)
                             reg.selected_filename = chosen_file.name
-                            reg.input_buf        = ""
-                            reg.state            = RegState.CONFIRM
+                            reg.input_buf         = ""
+                            reg.state             = RegState.CONFIRM
+                        else:
+                            try:
+                                content = chosen_file.read_text(encoding="utf-8").strip()
+                            except Exception as exc:
+                                logger.error("Cannot read %s: %s", chosen_file.name, exc)
+                            else:
+                                reg.action_detail     = content
+                                reg.selected_filename = chosen_file.name
+                                reg.input_buf         = ""
+                                reg.state             = RegState.CONFIRM
             elif reg.state == RegState.DELETE_CONFIRM:
                 if kbd == ord("y") or _hit(_del_btns.get("delete", ()), click):
                     entry = gesture_cfgs.pop(reg.name, None)
