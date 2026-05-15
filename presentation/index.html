@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Assisted Development: VisionTrigger & iTrace</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', sans-serif;
+    background: #0a0a0f;
+    color: #e8e8f0;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .slideshow { width: 100vw; height: 100vh; position: relative; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 50px 80px;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .slide.active { display: flex; opacity: 1; }
+
+  /* ── Slide backgrounds ── */
+  .slide-1  { background: radial-gradient(ellipse at 30% 50%, #1a0a3e 0%, #0a0a0f 70%); }
+  .slide-2  { background: radial-gradient(ellipse at 60% 40%, #0f1a3e 0%, #0a0a0f 70%); }
+  .slide-3, .slide-4, .slide-5, .slide-6
+            { background: radial-gradient(ellipse at 70% 30%, #0d1a3e 0%, #0a0a0f 70%); }
+  .slide-7, .slide-8, .slide-9, .slide-10
+            { background: radial-gradient(ellipse at 30% 70%, #0a2a1a 0%, #0a0a0f 70%); }
+  .slide-11 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
+  .slide-12 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
+  .slide-13 { background: radial-gradient(ellipse at 40% 40%, #1a1a0a 0%, #0a0a0f 70%); }
+  .slide-14 { background: radial-gradient(ellipse at 50% 50%, #1a0a3e 0%, #0a0a0f 70%); }
+
+  /* ── Grid lines overlay ── */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(100,100,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(100,100,255,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+  }
+
+  /* ── Accent line ── */
+  .accent-line {
+    width: 60px; height: 3px;
+    background: linear-gradient(90deg, #6c63ff, #00d4ff);
+    border-radius: 2px;
+    margin-bottom: 24px;
+  }
+  .accent-line.green { background: linear-gradient(90deg, #00c96e, #00d4ff); }
+  .accent-line.gold  { background: linear-gradient(90deg, #f7b731, #ff6b6b); }
+  .accent-line.orange { background: linear-gradient(90deg, #ff6b35, #f7b731); }
+
+  /* ── Title slide ── */
+  .title-slide { text-align: center; gap: 0; }
+
+  .title-tag {
+    font-size: 12px; letter-spacing: 4px; text-transform: uppercase;
+    color: #6c63ff; margin-bottom: 24px; font-weight: 600;
+  }
+
+  .title-main {
+    font-size: 50px; font-weight: 800; line-height: 1.15;
+    background: linear-gradient(135deg, #fff 30%, #6c63ff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 12px;
+  }
+
+  .title-sub { font-size: 26px; font-weight: 300; color: #00d4ff; margin-bottom: 40px; }
+
+  .title-bullets { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
+
+  .pill {
+    padding: 8px 20px; border: 1px solid rgba(108,99,255,0.4); border-radius: 24px;
+    font-size: 13px; color: #a8a8c8; background: rgba(108,99,255,0.08);
+  }
+
+  /* ── Content slides ── */
+  .content-slide { align-items: flex-start; max-width: 1100px; margin: 0 auto; width: 100%; }
+
+  .slide-label {
+    font-size: 11px; letter-spacing: 3px; text-transform: uppercase;
+    color: #6c63ff; font-weight: 600; margin-bottom: 12px;
+  }
+  .slide-label.green  { color: #00c96e; }
+  .slide-label.gold   { color: #f7b731; }
+  .slide-label.orange { color: #ff6b35; }
+
+  h2 {
+    font-size: 38px; font-weight: 800; line-height: 1.2;
+    margin-bottom: 28px; color: #ffffff;
+  }
+
+  h2 em {
+    font-style: normal;
+    background: linear-gradient(135deg, #6c63ff, #00d4ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  h2 em.green  { background: linear-gradient(135deg, #00c96e, #00d4ff); -webkit-background-clip: text; background-clip: text; }
+  h2 em.gold   { background: linear-gradient(135deg, #f7b731, #ff6b6b); -webkit-background-clip: text; background-clip: text; }
+  h2 em.orange { background: linear-gradient(135deg, #ff6b35, #f7b731); -webkit-background-clip: text; background-clip: text; }
+
+  /* ── Bullets ── */
+  .bullets { list-style: none; display: flex; flex-direction: column; gap: 14px; }
+
+  .bullets li {
+    display: flex; align-items: flex-start; gap: 14px;
+    font-size: 18px; line-height: 1.5; color: #c8c8e0;
+  }
+  .bullets li::before {
+    content: '▸'; color: #6c63ff; flex-shrink: 0; margin-top: 2px; font-size: 14px;
+  }
+  .bullets.green  li::before { color: #00c96e; }
+  .bullets.gold   li::before { color: #f7b731; }
+  .bullets.orange li::before { color: #ff6b35; }
+  .bullets li strong { color: #ffffff; font-weight: 700; }
+
+  /* ── Two-column layout ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; width: 100%; }
+  .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; width: 100%; }
+
+  .col-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 28px;
+  }
+  .col-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 16px; color: #6c63ff; }
+  .col-card h3.green  { color: #00c96e; }
+  .col-card h3.orange { color: #ff6b35; }
+
+  /* ── Image placeholder ── */
+  .img-placeholder {
+    width: 100%; border: 2px dashed rgba(108,99,255,0.35); border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: rgba(108,99,255,0.04); color: #6c63ff; text-align: center; gap: 6px;
+    padding: 20px;
+  }
+  .img-placeholder.green { border-color: rgba(0,201,110,0.35); background: rgba(0,201,110,0.04); color: #00c96e; }
+  .img-placeholder.orange { border-color: rgba(255,107,53,0.35); background: rgba(255,107,53,0.04); color: #ff6b35; }
+
+  .img-placeholder .img-icon { font-size: 28px; margin-bottom: 4px; }
+  .img-placeholder .img-title { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+  .img-placeholder .img-hint { font-size: 11px; color: #8080a0; line-height: 1.5; margin-top: 4px; }
+
+  /* ── Screenshot grid ── */
+  .screenshot-grid { display: grid; gap: 20px; width: 100%; }
+  .screenshot-grid.two  { grid-template-columns: 1fr 1fr; }
+  .screenshot-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+
+  .screenshot-grid .img-placeholder { min-height: 180px; }
+  .screenshot-grid.wide .img-placeholder { min-height: 240px; }
+
+  /* ── Project overview cards (slide 2) ── */
+  .project-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px; padding: 36px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .project-card .card-top { display: flex; align-items: center; gap: 16px; }
+  .project-card .card-badge {
+    font-size: 11px; letter-spacing: 3px; font-weight: 700; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 20px;
+  }
+  .badge-purple { background: rgba(108,99,255,0.2); color: #a89fff; border: 1px solid rgba(108,99,255,0.4); }
+  .badge-green  { background: rgba(0,201,110,0.15); color: #6ee8a8; border: 1px solid rgba(0,201,110,0.4); }
+
+  .project-card h3 { font-size: 26px; font-weight: 800; color: #fff; }
+  .project-card p  { font-size: 15px; color: #a0a0b8; line-height: 1.6; }
+
+  .project-card .tech-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .tech-tag {
+    font-size: 11px; padding: 4px 12px; border-radius: 6px; font-weight: 600;
+  }
+  .tech-tag.purple { background: rgba(108,99,255,0.15); color: #a89fff; }
+  .tech-tag.green  { background: rgba(0,201,110,0.12); color: #6ee8a8; }
+
+  /* ── Process step ── */
+  .steps-row { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+  .step-item {
+    display: flex; align-items: flex-start; gap: 16px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; padding: 16px 20px;
+  }
+  .step-num {
+    font-size: 22px; font-weight: 900; flex-shrink: 0;
+    background: linear-gradient(135deg, #ff6b35, #f7b731);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    min-width: 28px; line-height: 1.3;
+  }
+  .step-text strong { display: block; font-size: 15px; color: #fff; margin-bottom: 4px; }
+  .step-text span { font-size: 13px; color: #a0a0b8; line-height: 1.5; }
+
+  /* ── Insight callout ── */
+  .callout {
+    border-left: 3px solid #f7b731; background: rgba(247,183,49,0.06);
+    border-radius: 0 12px 12px 0; padding: 16px 20px; margin-top: 8px;
+  }
+  .callout.purple { border-color: #6c63ff; background: rgba(108,99,255,0.06); }
+  .callout.green  { border-color: #00c96e; background: rgba(0,201,110,0.06); }
+  .callout p { font-size: 15px; color: #d0d0e8; line-height: 1.65; }
+  .callout p strong { color: #f7b731; }
+  .callout.purple p strong { color: #a89fff; }
+  .callout.green  p strong { color: #6ee8a8; }
+
+  /* ── Summary grid ── */
+  .summary-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    width: 100%; margin-top: 8px;
+  }
+  .summary-card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 24px;
+  }
+  .summary-card .card-icon { font-size: 26px; margin-bottom: 10px; }
+  .summary-card h3 { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .summary-card p  { font-size: 13px; color: #a0a0b8; line-height: 1.6; }
+
+  /* ── Comparison table ── */
+  .compare-table { width: 100%; border-collapse: collapse; }
+  .compare-table th, .compare-table td {
+    padding: 14px 18px; text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 15px;
+  }
+  .compare-table th {
+    font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: #6060a0; font-weight: 600;
+  }
+  .compare-table td:first-child { color: #a0a0c0; font-weight: 600; font-size: 14px; }
+  .compare-table td.yes { color: #6ee8a8; }
+  .compare-table td.no  { color: #ff8080; }
+  .compare-table td.partial { color: #f7b731; }
+
+  /* ── Closing slide ── */
+  .closing-slide { text-align: center; }
+  .closing-title {
+    font-size: 52px; font-weight: 800;
+    background: linear-gradient(135deg, #fff 30%, #6c63ff 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 14px;
+  }
+  .closing-sub { font-size: 18px; color: #a0a0b8; margin-bottom: 36px; line-height: 1.6; }
+  .tag-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 36px; }
+  .tag { padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; }
+  .tag-purple { background: rgba(108,99,255,0.2); border: 1px solid rgba(108,99,255,0.5); color: #a89fff; }
+  .tag-green  { background: rgba(0,201,110,0.15); border: 1px solid rgba(0,201,110,0.4); color: #6ee8a8; }
+  .tag-blue   { background: rgba(0,212,255,0.12); border: 1px solid rgba(0,212,255,0.35); color: #7de8ff; }
+  .tag-orange { background: rgba(255,107,53,0.15); border: 1px solid rgba(255,107,53,0.4); color: #ffb08a; }
+
+  .github-link { font-size: 15px; color: #6c63ff; letter-spacing: 1px; }
+
+  /* ── Navigation ── */
+  .nav {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 20px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    backdrop-filter: blur(12px); border-radius: 40px; padding: 10px 24px; z-index: 100;
+  }
+  .nav button {
+    background: none; border: none; color: #e8e8f0; font-size: 18px;
+    cursor: pointer; padding: 4px 10px; border-radius: 8px; transition: background 0.2s;
+  }
+  .nav button:hover { background: rgba(255,255,255,0.1); }
+  .nav button:disabled { opacity: 0.25; cursor: default; }
+
+  .slide-counter { font-size: 13px; color: #8080a0; min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+
+  .dots { display: flex; gap: 5px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.2); cursor: pointer; transition: all 0.2s; }
+  .dot.active { background: #6c63ff; width: 18px; border-radius: 3px; }
+
+  /* ── Progress bar ── */
+  .progress { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #6c63ff, #00d4ff); transition: width 0.4s ease; z-index: 200; }
+
+  /* ── Badge ── */
+  .badge { position: fixed; top: 22px; right: 32px; font-size: 11px; color: #505070; letter-spacing: 2px; }
+
+  /* ── Section divider chip ── */
+  .section-chip {
+    font-size: 10px; letter-spacing: 4px; text-transform: uppercase;
+    padding: 5px 16px; border-radius: 20px; font-weight: 700; margin-bottom: 20px;
+    background: rgba(108,99,255,0.12); border: 1px solid rgba(108,99,255,0.3); color: #a89fff;
+    align-self: flex-start;
+  }
+  .section-chip.green  { background: rgba(0,201,110,0.1); border-color: rgba(0,201,110,0.3); color: #6ee8a8; }
+  .section-chip.orange { background: rgba(255,107,53,0.1); border-color: rgba(255,107,53,0.3); color: #ffb08a; }
+
+  /* ── Code snippet inline ── */
+  .code-inline {
+    background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px; padding: 12px 16px; font-family: 'Courier New', monospace;
+    font-size: 13px; color: #a8e6cf; line-height: 1.6; margin-top: 10px;
+  }
+
+  /* ── Wide img placeholder ── */
+  .img-wide { min-height: 220px; }
+</style>
+</head>
+<body>
+
+<div class="progress" id="progress"></div>
+<div class="badge" id="badge">01 / 14</div>
+
+<div class="slideshow">
+
+  <!-- ───────────────────────────────
+       SLIDE 1  Title
+       ─────────────────────────────── -->
+  <div class="slide slide-1 title-slide active" id="slide-1">
+    <div class="title-tag">Project Share · 2026</div>
+    <div class="title-main">AI-Assisted Development</div>
+    <div class="title-sub">VisionTrigger &amp; iTrace</div>
+    <div class="accent-line"></div>
+    <div class="title-bullets">
+      <div class="pill">Gesture &times; Voice Control</div>
+      <div class="pill">Instagram Followback Analysis</div>
+      <div class="pill">Claude Code Collaboration</div>
+      <div class="pill">Reverse Engineering</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 2  Two Projects Overview
+       ─────────────────────────────── -->
+  <div class="slide slide-2 content-slide" id="slide-2">
+    <div class="slide-label">Overview</div>
+    <div class="accent-line"></div>
+    <h2>Two Projects, One Theme:<br><em>AI as a Development Partner</em></h2>
+    <div class="two-col">
+      <div class="project-card">
+        <div class="card-top">
+          <span class="card-badge badge-purple">Project 01</span>
+        </div>
+        <h3>VisionTrigger</h3>
+        <p>Control macOS with hand gestures and voice commands — fully vibe-coded with Claude Code from scratch.</p>
+        <div class="tech-row">
+          <span class="tech-tag purple">Python</span>
+          <span class="tech-tag purple">MediaPipe</span>
+          <span class="tech-tag purple">Faster-Whisper</span>
+          <span class="tech-tag purple">OpenCV</span>
+        </div>
+      </div>
+      <div class="project-card">
+        <div class="card-top">
+          <span class="card-badge badge-green">Project 02</span>
+        </div>
+        <h3>iTrace</h3>
+        <p>Instagram followback checker — required manual reverse engineering of Instagram's undocumented private API.</p>
+        <div class="tech-row">
+          <span class="tech-tag green">React + Vite</span>
+          <span class="tech-tag green">Vanilla JS</span>
+          <span class="tech-tag green">Instagram API</span>
+          <span class="tech-tag green">Postman</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 3  VisionTrigger — What is it
+       ─────────────────────────────── -->
+  <div class="slide slide-3 content-slide" id="slide-3">
+    <div class="slide-label">Project 01</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— What is it?</em></h2>
+    <ul class="bullets">
+      <li>Control macOS using <strong>hand gestures</strong> detected through your MacBook camera</li>
+      <li>Triggers <strong>Shortcuts</strong>, <strong>AppleScript</strong>, or any <strong>shell command</strong></li>
+      <li>Also supports <strong>voice commands</strong> via Faster-Whisper (local, no internet)</li>
+      <li>Fully <strong>customizable</strong> gestures and voice-to-action mappings via <code>config.yaml</code></li>
+      <li>Register new gestures <strong>in-app</strong> — no restart needed</li>
+    </ul>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 4  VisionTrigger — Screenshots
+       ─────────────────────────────── -->
+  <div class="slide slide-4 content-slide" id="slide-4">
+    <div class="slide-label">Project 01 · Demo</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— In Action</em></h2>
+    <div class="screenshot-grid two">
+      <div>
+        <div class="img-placeholder img-wide">
+          <div class="img-icon">📷</div>
+          <div class="img-title">Screenshot 1 — Gesture Detection</div>
+          <div class="img-hint">App window with camera feed showing hand landmark skeleton overlay.<br>A recognized gesture (e.g. ✌️ Peace Sign) with action label visible on screen.</div>
+        </div>
+      </div>
+      <div>
+        <div class="img-placeholder img-wide">
+          <div class="img-icon">📋</div>
+          <div class="img-title">Screenshot 2 — Gesture List Panel</div>
+          <div class="img-hint">The in-app overlay showing all configured gestures and their mapped actions.<br>Press <kbd>g</kbd> in the app to open this panel.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 5  VisionTrigger — AI Tech
+       ─────────────────────────────── -->
+  <div class="slide slide-5 content-slide" id="slide-5">
+    <div class="slide-label">Project 01 · AI Technology</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— AI at the Core</em></h2>
+    <ul class="bullets">
+      <li><strong>MediaPipe HandLandmarker</strong> — Google's AI model detects 21 hand joint points every frame</li>
+      <li>Finger state encoded as a <strong>(thumb, index, middle, ring, pinky)</strong> boolean tuple → gesture lookup</li>
+      <li><strong>THUMBS_UP vs DOWN</strong> disambiguated by thumb-tip y-coordinate — subtle geometry trick</li>
+      <li><strong>Faster-Whisper</strong> — optimized Whisper model for real-time speech-to-text transcription</li>
+      <li>RMS-based Voice Activity Detection → <strong>no constant mic streaming</strong>, only activates on sound</li>
+      <li>All AI inference runs <strong>100% locally</strong> — no cloud, no latency, no privacy concern</li>
+    </ul>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 6  VisionTrigger — Vibecoded with Claude
+       ─────────────────────────────── -->
+  <div class="slide slide-6 content-slide" id="slide-6">
+    <div class="slide-label">Project 01 · Development</div>
+    <div class="accent-line"></div>
+    <h2>VisionTrigger<br><em>— Fully Vibe-Coded with Claude Code</em></h2>
+    <ul class="bullets">
+      <li><strong>Architecture design:</strong> single-threaded OpenCV loop + two daemon threads (action + voice)</li>
+      <li><strong>Gesture state machine:</strong> REG_IDLE → CAPTURE → NAME → ACTION_TYPE → CONFIRM</li>
+      <li><strong>Voice template matching:</strong> <code>{placeholder}</code> regex capture groups with substitution</li>
+      <li><strong>Module split:</strong> gestures / mac_trigger / voice / draw_utils — Claude refactored iteratively</li>
+      <li><strong>Hot-patching:</strong> new gestures register immediately without restart</li>
+    </ul>
+    <div class="callout purple" style="margin-top: 16px;">
+      <p>VisionTrigger is a case where Claude Code could handle <strong>the full stack</strong> — algorithms, UI drawing, config I/O, threading — with minimal human intervention beyond defining the intent.</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 7  iTrace — What is it
+       ─────────────────────────────── -->
+  <div class="slide slide-7 content-slide" id="slide-7">
+    <div class="slide-label green">Project 02</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— What is it?</em></h2>
+    <ul class="bullets green">
+      <li><strong>Instagram followback checker</strong> — find who you follow but who doesn't follow back</li>
+      <li>Live at <strong>itrace.stanleyowen.com</strong></li>
+      <li><strong>Online mode:</strong> script injected into Instagram DevTools console, fetches live data via Instagram's internal API and renders a floating overlay UI on top of instagram.com</li>
+      <li><strong>Offline mode:</strong> upload Instagram data export JSON files, compare locally — no network calls</li>
+      <li>All data processed <strong>client-side</strong> — no backend, no accounts, full privacy</li>
+      <li>Supports <strong>bulk unfollow</strong> with rate-limit-safe throttling</li>
+    </ul>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 8  iTrace — Screenshots
+       ─────────────────────────────── -->
+  <div class="slide slide-8 content-slide" id="slide-8">
+    <div class="slide-label green">Project 02 · Demo</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— In Action</em></h2>
+    <div class="screenshot-grid three">
+      <div>
+        <div class="img-placeholder green" style="min-height: 170px;">
+          <div class="img-icon">🌐</div>
+          <div class="img-title">Screenshot 3 — Website</div>
+          <div class="img-hint">iTrace homepage at itrace.stanleyowen.com — showing the Online/Offline mode toggle.</div>
+        </div>
+      </div>
+      <div>
+        <div class="img-placeholder green" style="min-height: 170px;">
+          <div class="img-icon">🔧</div>
+          <div class="img-title">Screenshot 4 — Script Panel</div>
+          <div class="img-hint">Online mode: script panel with delay/jitter settings, ready to copy and run in DevTools.</div>
+        </div>
+      </div>
+      <div>
+        <div class="img-placeholder green" style="min-height: 170px;">
+          <div class="img-icon">📊</div>
+          <div class="img-title">Screenshot 5 — Overlay on Instagram</div>
+          <div class="img-hint">The iTrace floating panel injected <em>directly on top of instagram.com</em> showing the non-followers list with unfollow buttons.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 9  iTrace — Tech Architecture
+       ─────────────────────────────── -->
+  <div class="slide slide-9 content-slide" id="slide-9">
+    <div class="slide-label green">Project 02 · Architecture</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— Technical Architecture</em></h2>
+    <div class="two-col">
+      <div>
+        <ul class="bullets green" style="font-size: 16px;">
+          <li><strong>Frontend:</strong> React + Vite (JavaScript 79.7%)</li>
+          <li><strong>Offline mode:</strong> upload Instagram export JSON → local Set-difference algorithm</li>
+          <li><strong>Online mode:</strong> injected vanilla JS overlay — no frameworks, runs anywhere</li>
+          <li><strong>Pagination:</strong> walks all pages of <code>/api/v1/friendships/</code> with throttle + retry</li>
+          <li><strong>Rate limiting:</strong> configurable delay, jitter, and 5-cycle cooldown</li>
+          <li><strong>Unfollow:</strong> POST to <code>/web/friendships/{id}/unfollow/</code> with CSRF token</li>
+        </ul>
+      </div>
+      <div>
+        <div class="col-card">
+          <h3 class="green">Core Algorithm</h3>
+          <div class="code-inline">
+            const followersSet = new Set(followers);<br>
+            const notFollowBack =<br>
+            &nbsp;&nbsp;following.filter(u =&gt;<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;!followersSet.has(u));
+          </div>
+          <p style="font-size: 13px; color: #8080a0; margin-top: 14px; line-height: 1.6;">Simple set difference — the hard part was getting the data, not computing the result.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 10  The Challenge — Instagram Private API
+       ─────────────────────────────── -->
+  <div class="slide slide-10 content-slide" id="slide-10">
+    <div class="slide-label green">Project 02 · The Hard Part</div>
+    <div class="accent-line green"></div>
+    <h2>iTrace<br><em class="green">— Instagram's Undocumented Private API</em></h2>
+    <ul class="bullets green">
+      <li>Instagram has <strong>no public API</strong> for reading your own followers/following list programmatically</li>
+      <li>The app calls an <strong>internal API</strong> not documented anywhere: <code>/api/v1/friendships/followers/</code></li>
+      <li>Required identifying the right <strong>headers</strong> (e.g. <code>x-ig-app-id: 936619743392459</code>), auth cookies, and pagination parameters</li>
+      <li>The <strong>unfollow endpoint</strong> needed CSRF token extraction from cookies + correct POST format</li>
+      <li>AI alone could not figure this out — the API behavior had to be <strong>observed and verified manually</strong></li>
+    </ul>
+    <div class="callout green" style="margin-top: 16px;">
+      <p>This is where <strong>human judgment became essential</strong> — not just writing code, but understanding a system that wasn't designed to be understood from the outside.</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 11  Reverse Engineering Process
+       ─────────────────────────────── -->
+  <div class="slide slide-11 content-slide" id="slide-11">
+    <div class="slide-label orange">Reverse Engineering</div>
+    <div class="accent-line orange"></div>
+    <h2>How I Cracked It:<br><em class="orange">Postman + Manual Analysis</em></h2>
+    <div class="two-col">
+      <div class="steps-row">
+        <div class="step-item">
+          <div class="step-num">01</div>
+          <div class="step-text">
+            <strong>Capture traffic in DevTools</strong>
+            <span>Open Instagram in browser, inspect Network tab, filter by <code>friendships</code> to find the real API calls being made by the Instagram web app.</span>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">02</div>
+          <div class="step-text">
+            <strong>Replay in Postman</strong>
+            <span>Copy the request (headers, cookies, params) into Postman. Test each endpoint, observe the response structure, and confirm what fields are returned.</span>
+          </div>
+        </div>
+        <div class="step-item">
+          <div class="step-num">03</div>
+          <div class="step-text">
+            <strong>AI-assisted analysis</strong>
+            <span>Used AI to help parse the JSON schema, understand pagination (<code>next_max_id</code>), and design the retry + rate-limit logic around the discovered endpoints.</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="img-placeholder orange img-wide">
+          <div class="img-icon">🔬</div>
+          <div class="img-title">Screenshot 6 — Postman</div>
+          <div class="img-hint">Postman showing the Instagram <code>/api/v1/friendships/followers/</code> endpoint.<br>Include: request headers (x-ig-app-id), response body with users array, and pagination fields (next_max_id).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 12  AI Can Do a Lot, But…
+       ─────────────────────────────── -->
+  <div class="slide slide-12 content-slide" id="slide-12">
+    <div class="slide-label" style="color: #c084fc;">Key Insight</div>
+    <div class="accent-line" style="background: linear-gradient(90deg, #c084fc, #6c63ff);"></div>
+    <h2>AI Can Do A Lot —<br><em>But Humans Still Matter</em></h2>
+    <table class="compare-table" style="margin-top: 4px;">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>VisionTrigger</th>
+          <th>iTrace</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>UI &amp; logic coding</td>
+          <td class="yes">AI ✓</td>
+          <td class="yes">AI ✓</td>
+        </tr>
+        <tr>
+          <td>Architecture design</td>
+          <td class="yes">AI ✓</td>
+          <td class="yes">AI ✓</td>
+        </tr>
+        <tr>
+          <td>API discovery</td>
+          <td class="yes">Public / Documented</td>
+          <td class="no">Human required ✗</td>
+        </tr>
+        <tr>
+          <td>Reverse engineering</td>
+          <td class="yes">Not needed</td>
+          <td class="no">Manual with Postman ✗</td>
+        </tr>
+        <tr>
+          <td>Rate-limit strategy</td>
+          <td class="yes">AI ✓</td>
+          <td class="partial">Human verified numbers</td>
+        </tr>
+        <tr>
+          <td>Data interpretation</td>
+          <td class="yes">AI ✓</td>
+          <td class="partial">Human + AI together</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 13  Takeaways
+       ─────────────────────────────── -->
+  <div class="slide slide-13 content-slide" id="slide-13">
+    <div class="slide-label gold">Reflection</div>
+    <div class="accent-line gold"></div>
+    <h2><em class="gold">What I Learned</em></h2>
+    <div class="summary-grid">
+      <div class="summary-card">
+        <div class="card-icon">🤖</div>
+        <h3>AI accelerates, not replaces</h3>
+        <p>VisionTrigger was fully vibe-coded — AI handled architecture, modules, state machines. The result: complex software delivered fast.</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🧠</div>
+        <h3>Some problems need human eyes</h3>
+        <p>iTrace's online mode required observing network traffic, understanding undocumented behavior, and manually validating every assumption.</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🔍</div>
+        <h3>Reverse engineering is a skill</h3>
+        <p>AI helped parse and implement once the API was known — but discovering the API required human curiosity, Postman, and trial and error.</p>
+      </div>
+      <div class="summary-card">
+        <div class="card-icon">🤝</div>
+        <h3>Best results: human + AI together</h3>
+        <p>Human identifies the unknown, AI implements the known. The combination is stronger than either alone.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 14  Thank You
+       ─────────────────────────────── -->
+  <div class="slide slide-14 closing-slide" id="slide-14">
+    <div class="closing-title">Thank You</div>
+    <div class="closing-sub">Two projects. One lesson:<br>AI is the co-pilot — you still need a pilot.</div>
+    <div class="tag-row">
+      <div class="tag tag-purple">VisionTrigger · Gesture + Voice Control</div>
+      <div class="tag tag-green">iTrace · Privacy-first Followback Checker</div>
+      <div class="tag tag-blue">Claude Code · AI Pair Programming</div>
+      <div class="tag tag-orange">Postman · Manual API Reverse Engineering</div>
+    </div>
+    <div class="github-link">github.com/stanleyowen</div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<nav class="nav">
+  <button id="prevBtn" onclick="changeSlide(-1)" disabled>&#8592;</button>
+  <div class="dots" id="dots"></div>
+  <span class="slide-counter" id="counter">1 / 14</span>
+  <button id="nextBtn" onclick="changeSlide(1)">&#8594;</button>
+</nav>
+
+<script>
+  const TOTAL = 14;
+  let current = 1;
+
+  const dotsEl = document.getElementById('dots');
+  for (let i = 1; i <= TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 1 ? ' active' : '');
+    d.onclick = () => goTo(i);
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    document.getElementById('slide-' + current).classList.remove('active');
+    current = Math.max(1, Math.min(TOTAL, n));
+    const slide = document.getElementById('slide-' + current);
+    slide.style.display = 'flex';
+    requestAnimationFrame(() => slide.classList.add('active'));
+
+    document.getElementById('counter').textContent = current + ' / ' + TOTAL;
+    document.getElementById('badge').textContent =
+      String(current).padStart(2, '0') + ' / ' + String(TOTAL).padStart(2, '0');
+    document.getElementById('progress').style.width = (current / TOTAL * 100) + '%';
+    document.getElementById('prevBtn').disabled = current === 1;
+    document.getElementById('nextBtn').disabled = current === TOTAL;
+
+    document.querySelectorAll('.dot').forEach((d, i) => {
+      d.classList.toggle('active', i + 1 === current);
+    });
+  }
+
+  function changeSlide(dir) { goTo(current + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') changeSlide(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                     changeSlide(-1);
+  });
+
+  document.getElementById('progress').style.width = (1 / TOTAL * 100) + '%';
+</script>
+</body>
+</html>
