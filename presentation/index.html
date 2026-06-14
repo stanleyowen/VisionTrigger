@@ -34,20 +34,25 @@
 
   /* ── Slide backgrounds ── */
   .slide-1  { background: radial-gradient(ellipse at 30% 50%, #1a0a3e 0%, #0a0a0f 70%); }
-  .slide-2  { background: radial-gradient(ellipse at 60% 40%, #0f1a3e 0%, #0a0a0f 70%); }
-  /* VisionTrigger (purple) — slides 3-6 */
-  .slide-3, .slide-4, .slide-5, .slide-6
+  /* Motivation (warm) — slide 2 */
+  .slide-2  { background: radial-gradient(ellipse at 40% 50%, #2a1a0a 0%, #0a0a0f 70%); }
+  .slide-3  { background: radial-gradient(ellipse at 60% 40%, #0f1a3e 0%, #0a0a0f 70%); }
+  /* Tools disclosure (cyan) — slide 4 */
+  .slide-4  { background: radial-gradient(ellipse at 50% 50%, #00142a 0%, #0a0a0f 70%); }
+  /* VisionTrigger (purple) — slides 5-8 */
+  .slide-5, .slide-6, .slide-7, .slide-8
             { background: radial-gradient(ellipse at 70% 30%, #0d1a3e 0%, #0a0a0f 70%); }
-  /* iTrace (green) — slides 7-9, 11 */
-  .slide-7, .slide-8, .slide-9, .slide-11
+  /* iTrace (green) — slides 9-11, 13 */
+  .slide-9, .slide-10, .slide-11, .slide-13
             { background: radial-gradient(ellipse at 30% 70%, #0a2a1a 0%, #0a0a0f 70%); }
-  .slide-10 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
-  /* Project 03 (cyan-teal) — slides 12-13 */
-  .slide-12, .slide-13
+  /* Reverse engineering — slide 12 */
+  .slide-12 { background: radial-gradient(ellipse at 50% 40%, #2a1a0a 0%, #0a0a0f 70%); }
+  /* Project 03 (cyan-teal) — slides 14-15 */
+  .slide-14, .slide-15
             { background: radial-gradient(ellipse at 65% 35%, #00142a 0%, #0a0a0f 70%); }
-  .slide-14 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
-  .slide-15 { background: radial-gradient(ellipse at 40% 40%, #1a1a0a 0%, #0a0a0f 70%); }
-  .slide-16 { background: radial-gradient(ellipse at 50% 50%, #1a0a3e 0%, #0a0a0f 70%); }
+  .slide-16 { background: radial-gradient(ellipse at 60% 60%, #1a0a2a 0%, #0a0a0f 70%); }
+  .slide-17 { background: radial-gradient(ellipse at 40% 40%, #1a1a0a 0%, #0a0a0f 70%); }
+  .slide-18 { background: radial-gradient(ellipse at 50% 50%, #1a0a3e 0%, #0a0a0f 70%); }
 
   /* ── Grid lines overlay ── */
   .slide::before {
@@ -250,6 +255,24 @@
   .compare-table td.no  { color: #ff8080; }
   .compare-table td.partial { color: #f7b731; }
 
+  /* ── Tools table (slide 4) ── */
+  .tools-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .tools-table th, .tools-table td {
+    padding: 12px 14px; text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    vertical-align: top;
+  }
+  .tools-table th {
+    font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+    color: #7de8ff; font-weight: 600;
+    border-bottom: 1px solid rgba(0,212,255,0.3);
+  }
+  .tools-table td:first-child { color: #fff; font-weight: 700; }
+  .tools-table .cost-paid { color: #ffb08a; font-weight: 600; }
+  .tools-table .cost-free { color: #6ee8a8; font-weight: 600; }
+  .tools-table .cost-student { color: #a89fff; font-weight: 600; }
+  .tools-table td { color: #c8c8e0; line-height: 1.5; }
+
   /* ── Closing slide ── */
   .closing-slide { text-align: center; }
   .closing-title {
@@ -318,15 +341,15 @@
 <body>
 
 <div class="progress" id="progress"></div>
-<div class="badge" id="badge">01 / 16</div>
+<div class="badge" id="badge">01 / 18</div>
 
 <div class="slideshow">
 
   <!-- ───────────────────────────────
-       SLIDE 1  Title
+       SLIDE 1  Title  ·  題目
        ─────────────────────────────── -->
   <div class="slide slide-1 title-slide active" id="slide-1">
-    <div class="title-tag">EC1013701 · Introduction to Artificial Intelligence</div>
+    <div class="title-tag">① 題目 · Title &nbsp;|&nbsp; EC1013701 · Introduction to AI</div>
     <div class="title-main">AI-Assisted Development</div>
     <div class="title-sub">VisionTrigger, iTrace &amp; This Presentation</div>
     <div class="accent-line"></div>
@@ -343,10 +366,39 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 2  Two Projects Overview
+       SLIDE 2  Motivation  ·  動機
        ─────────────────────────────── -->
   <div class="slide slide-2 content-slide" id="slide-2">
-    <div class="slide-label">Overview</div>
+    <div class="slide-label orange">② 動機 · Motivation</div>
+    <div class="accent-line orange"></div>
+    <h2>Why I Built<br><em class="orange">These Three Things</em></h2>
+    <div class="two-col">
+      <div class="col-card">
+        <h3 class="orange">Personal Itch &nbsp; 個人需求</h3>
+        <ul class="bullets orange" style="font-size:15px;gap:10px;">
+          <li><span>I cook and exercise while watching videos — I wanted to <strong>pause / change volume without touching the Mac</strong></span></li>
+          <li><span>I noticed many Instagram &ldquo;friends&rdquo; never followed me back — wanted a <strong>private way to find out</strong> without third-party logins</span></li>
+        </ul>
+      </div>
+      <div class="col-card">
+        <h3 class="orange">Bigger Question &nbsp; 真正想問的問題</h3>
+        <ul class="bullets orange" style="font-size:15px;gap:10px;">
+          <li><span>How far can <strong>AI coding assistants actually take a real project</strong> from zero?</span></li>
+          <li><span>Where does AI <strong>break down</strong> and human judgment become essential?</span></li>
+          <li><span>If AI can write the code, can it also <strong>present the code?</strong></span></li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout" style="margin-top: 20px; border-color:#ff6b35; background:rgba(255,107,53,0.06);">
+      <p style="color:#f0d8c8;"><strong style="color:#ffb08a;">The thesis:</strong> instead of one toy demo, I built <strong>three real artifacts</strong> at different points on the AI-autonomy spectrum — and watched where the line lives.</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 3  Two Projects Overview
+       ─────────────────────────────── -->
+  <div class="slide slide-3 content-slide" id="slide-3">
+    <div class="slide-label">Overview · 三件作品</div>
     <div class="accent-line"></div>
     <h2>Three Projects, One Theme:<br><em>AI as a Development Partner</em></h2>
     <div class="three-col">
@@ -390,10 +442,70 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 3  VisionTrigger — What is it
+       SLIDE 4  Tools Disclosure  ·  使用工具
        ─────────────────────────────── -->
-  <div class="slide slide-3 content-slide" id="slide-3">
-    <div class="slide-label">Project 01</div>
+  <div class="slide slide-4 content-slide" id="slide-4">
+    <div class="slide-label" style="color:#00d4ff;">③ 使用工具 · Tools Disclosure</div>
+    <div class="accent-line" style="background:linear-gradient(90deg,#00d4ff,#6c63ff);"></div>
+    <h2>Every Tool I Used &mdash;<br><em>Cost, Purpose &amp; How</em></h2>
+    <table class="tools-table">
+      <thead>
+        <tr>
+          <th style="width:22%;">Tool</th>
+          <th style="width:14%;">Cost · 是否付費</th>
+          <th style="width:30%;">Purpose · 用途</th>
+          <th style="width:34%;">How I Used It · 如何使用</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Claude Code <span style="font-weight:400;color:#8080a0;">(Anthropic)</span></td>
+          <td class="cost-paid">PAID · Claude Max ~$200/mo</td>
+          <td>Full-stack code generation, architecture, refactoring</td>
+          <td>CLI agent in terminal — prompted in plain English; AI read files, wrote code, ran tests iteratively</td>
+        </tr>
+        <tr>
+          <td>GitHub Copilot</td>
+          <td class="cost-student">FREE · Student license</td>
+          <td>Inline code autocomplete during typing</td>
+          <td>VS Code extension — tab to accept inline suggestions while editing</td>
+        </tr>
+        <tr>
+          <td>MediaPipe HandLandmarker <span style="font-weight:400;color:#8080a0;">(Google)</span></td>
+          <td class="cost-free">FREE · Open-source</td>
+          <td>AI model — detects 21 hand joints per frame</td>
+          <td>Imported via <code>mediapipe</code> Python package; runs locally on CPU</td>
+        </tr>
+        <tr>
+          <td>Faster-Whisper</td>
+          <td class="cost-free">FREE · Open-source</td>
+          <td>AI model — real-time speech-to-text</td>
+          <td><code>pip install faster-whisper</code>; model auto-downloaded, runs 100% offline</td>
+        </tr>
+        <tr>
+          <td>Postman</td>
+          <td class="cost-free">FREE · Personal plan</td>
+          <td>API testing &amp; reverse engineering</td>
+          <td>Copied Instagram's network requests from DevTools, replayed &amp; tweaked to discover endpoints</td>
+        </tr>
+        <tr>
+          <td>OpenCV &nbsp;·&nbsp; React+Vite &nbsp;·&nbsp; Python</td>
+          <td class="cost-free">FREE · Open-source</td>
+          <td>Camera capture / web frontend / runtime</td>
+          <td>Standard package managers (pip, npm); used as documented</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout" style="margin-top: 14px; border-color:#00d4ff; background:rgba(0,212,255,0.05);">
+      <p style="color:#c8d8f0; font-size:14px;"><strong style="color:#7de8ff;">Disclosure:</strong> the only paid tool is Claude Code (subscription). Everything else is free or covered by my student account. No tool's output was hidden, polished, or attributed to me.</p>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────
+       SLIDE 5  VisionTrigger — What is it
+       ─────────────────────────────── -->
+  <div class="slide slide-5 content-slide" id="slide-5">
+    <div class="slide-label">④ 成果展示 · Project 01</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— What is it?</em></h2>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:40px;align-items:flex-start;width:100%;">
@@ -412,10 +524,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 4  VisionTrigger — AI Tech
+       SLIDE 6  VisionTrigger — AI Tech
        ─────────────────────────────── -->
-  <div class="slide slide-4 content-slide" id="slide-4">
-    <div class="slide-label">Project 01 · AI Technology</div>
+  <div class="slide slide-6 content-slide" id="slide-6">
+    <div class="slide-label">④ 成果展示 · Project 01 · AI Technology</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— AI at the Core</em></h2>
     <ul class="bullets">
@@ -429,10 +541,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 5  VisionTrigger — Vibecoded with Claude
+       SLIDE 7  VisionTrigger — Vibecoded with Claude
        ─────────────────────────────── -->
-  <div class="slide slide-5 content-slide" id="slide-5">
-    <div class="slide-label">Project 01 · Development</div>
+  <div class="slide slide-7 content-slide" id="slide-7">
+    <div class="slide-label">④ 成果展示 · Project 01 · Development</div>
     <div class="accent-line"></div>
     <h2>VisionTrigger<br><em>— Vibe-Coded with AI Tools</em></h2>
     <ul class="bullets">
@@ -453,10 +565,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 6  VisionTrigger — Live Demo
+       SLIDE 8  VisionTrigger — Live Demo
        ─────────────────────────────── -->
-  <div class="slide slide-6" id="slide-6" style="text-align:center;gap:0;">
-    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#6c63ff;font-weight:600;margin-bottom:20px;">Project 01 · Live Demo</div>
+  <div class="slide slide-8" id="slide-8" style="text-align:center;gap:0;">
+    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#6c63ff;font-weight:600;margin-bottom:20px;">④ 成果展示 · Project 01 · Live Demo</div>
     <div style="font-size:100px;margin-bottom:24px;line-height:1;">🖐️</div>
     <div style="font-size:54px;font-weight:900;background:linear-gradient(135deg,#fff 30%,#6c63ff 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">VisionTrigger</div>
     <div style="font-size:22px;color:#00d4ff;font-weight:300;margin-bottom:40px;">Live Gesture &amp; Voice Demo</div>
@@ -468,10 +580,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 7  iTrace — What is it
+       SLIDE 9  iTrace — What is it
        ─────────────────────────────── -->
-  <div class="slide slide-7 content-slide" id="slide-7">
-    <div class="slide-label green">Project 02</div>
+  <div class="slide slide-9 content-slide" id="slide-9">
+    <div class="slide-label green">④ 成果展示 · Project 02</div>
     <div class="accent-line green"></div>
     <h2>iTrace<br><em class="green">— What is it?</em></h2>
     <div style="display:grid;grid-template-columns:3fr 2fr;gap:40px;align-items:flex-start;width:100%;">
@@ -491,10 +603,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 8  iTrace — Tech Architecture
+       SLIDE 10  iTrace — Tech Architecture
        ─────────────────────────────── -->
-  <div class="slide slide-8 content-slide" id="slide-8">
-    <div class="slide-label green">Project 02 · Architecture</div>
+  <div class="slide slide-10 content-slide" id="slide-10">
+    <div class="slide-label green">④ 成果展示 · Project 02 · Architecture</div>
     <div class="accent-line green"></div>
     <h2>iTrace<br><em class="green">— Technical Architecture</em></h2>
     <div class="two-col">
@@ -524,18 +636,18 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 9  The Challenge — Instagram Private API
+       SLIDE 11  The Challenge — Instagram Private API  ·  困難
        ─────────────────────────────── -->
-  <div class="slide slide-9 content-slide" id="slide-9">
-    <div class="slide-label green">Project 02 · The Hard Part</div>
+  <div class="slide slide-11 content-slide" id="slide-11">
+    <div class="slide-label green">⑤ 遭遇的困難 · The Hard Part</div>
     <div class="accent-line green"></div>
-    <h2>iTrace<br><em class="green">— Instagram's Undocumented Private API</em></h2>
+    <h2>The Difficulty:<br><em class="green">Instagram's Undocumented Private API</em></h2>
     <ul class="bullets green">
       <li><span>Instagram has <strong>no public API</strong> for reading your own followers/following list programmatically</span></li>
       <li><span>The app calls an <strong>internal API</strong> not documented anywhere: <code>/api/v1/friendships/followers/</code></span></li>
       <li><span>Required identifying the right <strong>headers</strong> (e.g. <code>x-ig-app-id: 936619743392459</code>), auth cookies, and pagination parameters</span></li>
       <li><span>The <strong>unfollow endpoint</strong> needed CSRF token extraction from cookies + correct POST format</span></li>
-      <li><span>AI alone could not figure this out — the API behavior had to be <strong>observed and verified manually</strong></span></li>
+      <li><span><strong>AI alone could not figure this out</strong> — the API behavior had to be observed and verified manually</span></li>
     </ul>
     <div class="callout green" style="margin-top: 16px;">
       <p>This is where <strong>human judgment became essential</strong> — not just writing code, but understanding a system that wasn't designed to be understood from the outside.</p>
@@ -543,10 +655,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 10  Reverse Engineering Process
+       SLIDE 12  Reverse Engineering Process  ·  解決方案
        ─────────────────────────────── -->
-  <div class="slide slide-10 content-slide" id="slide-10">
-    <div class="slide-label orange">Reverse Engineering</div>
+  <div class="slide slide-12 content-slide" id="slide-12">
+    <div class="slide-label orange">⑤ 遭遇的困難 · How I Solved It</div>
     <div class="accent-line orange"></div>
     <h2>How I Cracked It:<br><em class="orange">Postman + Manual Analysis</em></h2>
     <div class="two-col">
@@ -580,10 +692,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 11  iTrace — Live Demo
+       SLIDE 13  iTrace — Live Demo
        ─────────────────────────────── -->
-  <div class="slide slide-11" id="slide-11" style="text-align:center;gap:0;">
-    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#00c96e;font-weight:600;margin-bottom:20px;">Project 02 · Live Demo</div>
+  <div class="slide slide-13" id="slide-13" style="text-align:center;gap:0;">
+    <div style="font-size:11px;letter-spacing:4px;text-transform:uppercase;color:#00c96e;font-weight:600;margin-bottom:20px;">④ 成果展示 · Project 02 · Live Demo</div>
     <div style="font-size:100px;margin-bottom:24px;line-height:1;">📊</div>
     <div style="font-size:54px;font-weight:900;background:linear-gradient(135deg,#fff 30%,#00c96e 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:16px;">iTrace</div>
     <div style="font-size:22px;color:#00d4ff;font-weight:300;margin-bottom:40px;">Live Followback Analysis Demo</div>
@@ -595,15 +707,15 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 12  Project 03 — This Presentation
+       SLIDE 14  Project 03 — This Presentation
        ─────────────────────────────── -->
-  <div class="slide slide-12 content-slide" id="slide-12">
-    <div class="slide-label" style="color:#00d4ff;">Project 03</div>
+  <div class="slide slide-14 content-slide" id="slide-14">
+    <div class="slide-label" style="color:#00d4ff;">④ 成果展示 · Project 03</div>
     <div class="accent-line" style="background:linear-gradient(90deg,#00d4ff,#6c63ff);"></div>
     <h2>This Presentation<br><em>— Also Made by AI</em></h2>
     <ul class="bullets" style="--bullet-color:#00d4ff;">
       <li style="color:#c8c8e0;"><strong>Input:</strong> only the codebases of VisionTrigger and iTrace — no slides, no outline, no instructions beyond "make a presentation"</li>
-      <li style="color:#c8c8e0;"><strong>Output:</strong> full HTML/CSS slide deck with dark sci-fi design, 14+ slides, narrative arc, and all content</li>
+      <li style="color:#c8c8e0;"><strong>Output:</strong> full HTML/CSS slide deck with dark sci-fi design, 18+ slides, narrative arc, and all content</li>
       <li style="color:#c8c8e0;"><strong>Time taken:</strong> under 3 minutes from prompt to finished presentation</li>
       <li style="color:#c8c8e0;"><strong>Human work:</strong> zero HTML written — only feedback and small corrections after the fact</li>
       <li style="color:#c8c8e0;"><strong>Tool used:</strong> Claude Code read every source file, understood the projects, and generated everything</li>
@@ -614,10 +726,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 13  Project 03 — How it was made
+       SLIDE 15  Project 03 — How it was made
        ─────────────────────────────── -->
-  <div class="slide slide-13 content-slide" id="slide-13">
-    <div class="slide-label" style="color:#00d4ff;">Project 03 · Process</div>
+  <div class="slide slide-15 content-slide" id="slide-15">
+    <div class="slide-label" style="color:#00d4ff;">④ 成果展示 · Project 03 · Process</div>
     <div class="accent-line" style="background:linear-gradient(90deg,#00d4ff,#6c63ff);"></div>
     <h2>How the AI Built<br><em>This Presentation</em></h2>
     <div class="two-col">
@@ -650,7 +762,7 @@
           <ul class="bullets" style="font-size:14px;gap:10px;">
             <li style="color:#a0c8e0;">Read &amp; understood 1000+ lines of code</li>
             <li style="color:#a0c8e0;">Designed visual theme from scratch</li>
-            <li style="color:#a0c8e0;">Structured a coherent 16-slide narrative</li>
+            <li style="color:#a0c8e0;">Structured a coherent 18-slide narrative</li>
             <li style="color:#a0c8e0;">Wrote all HTML, CSS, and JavaScript</li>
           </ul>
         </div>
@@ -667,10 +779,10 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 14  AI Can Do a Lot, But…
+       SLIDE 16  AI Can Do a Lot, But…
        ─────────────────────────────── -->
-  <div class="slide slide-14 content-slide" id="slide-14">
-    <div class="slide-label" style="color: #c084fc;">Key Insight</div>
+  <div class="slide slide-16 content-slide" id="slide-16">
+    <div class="slide-label" style="color: #c084fc;">Key Insight · 關鍵洞察</div>
     <div class="accent-line" style="background: linear-gradient(90deg, #c084fc, #6c63ff);"></div>
     <h2>AI Can Do A Lot —<br><em>But Humans Still Matter</em></h2>
     <table class="compare-table" style="margin-top: 4px;">
@@ -724,47 +836,47 @@
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 15  Takeaways
+       SLIDE 17  Takeaways  ·  感想
        ─────────────────────────────── -->
-  <div class="slide slide-15 content-slide" id="slide-15">
-    <div class="slide-label gold">Reflection</div>
+  <div class="slide slide-17 content-slide" id="slide-17">
+    <div class="slide-label gold">⑥ 感想 · Reflection</div>
     <div class="accent-line gold"></div>
     <h2><em class="gold">What I Learned</em></h2>
     <div class="summary-grid">
       <div class="summary-card">
         <div class="card-icon">🤖</div>
-        <h3>AI accelerates, not replaces</h3>
-        <p>VisionTrigger was fully vibe-coded — Claude Code + GitHub Copilot Codex handled architecture, modules, and state machines. Complex software delivered fast.</p>
+        <h3>AI accelerates, not replaces &nbsp;·&nbsp; AI 是加速器，不是替代品</h3>
+        <p>VisionTrigger was fully vibe-coded — Claude Code + Copilot handled architecture, modules, and state machines. Complex software shipped in days, not weeks.</p>
       </div>
       <div class="summary-card">
         <div class="card-icon">🧠</div>
-        <h3>Some problems need human eyes</h3>
+        <h3>Some problems need human eyes &nbsp;·&nbsp; 有些問題只能靠人</h3>
         <p>iTrace required observing live network traffic, understanding undocumented API behavior, and manually validating every assumption — AI alone couldn't get there.</p>
       </div>
       <div class="summary-card">
         <div class="card-icon">✅</div>
-        <h3>Even "full AI" needs verification</h3>
+        <h3>Even &ldquo;full AI&rdquo; needs verification &nbsp;·&nbsp; 全 AI 也要驗證</h3>
         <p>This presentation was generated by AI in under 3 minutes — but a human still reviewed every slide, corrected details, and approved the final output.</p>
       </div>
       <div class="summary-card">
         <div class="card-icon">🤝</div>
-        <h3>Human judgment is the constant</h3>
-        <p>Whether AI does 20% or 100% of the work, a human must verify the result is correct, honest, and actually says what you mean.</p>
+        <h3>Human judgment is the constant &nbsp;·&nbsp; 判斷力才是核心</h3>
+        <p>Whether AI does 20% or 100% of the work, a human must verify the result is correct, honest, and actually says what you meant to say.</p>
       </div>
     </div>
   </div>
 
   <!-- ───────────────────────────────
-       SLIDE 16  Thank You
+       SLIDE 18  Thank You
        ─────────────────────────────── -->
-  <div class="slide slide-16 closing-slide" id="slide-16">
-    <div class="closing-title">Thank You</div>
+  <div class="slide slide-18 closing-slide" id="slide-18">
+    <div class="closing-title">Thank You &nbsp;·&nbsp; 謝謝</div>
     <div class="closing-sub">Three projects. One lesson:<br>AI can be the whole crew — but humans must still verify the flight.</div>
     <div class="tag-row">
       <div class="tag tag-purple">VisionTrigger · Gesture + Voice Control</div>
       <div class="tag tag-green">iTrace · Privacy-first Followback Checker</div>
       <div class="tag tag-blue">Claude Code · Full-stack AI Coding</div>
-      <div class="tag tag-blue" style="background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.35);color:#7de8ff;">GitHub Copilot Codex · Inline Suggestions</div>
+      <div class="tag tag-blue" style="background:rgba(0,212,255,0.12);border-color:rgba(0,212,255,0.35);color:#7de8ff;">GitHub Copilot · Inline Suggestions</div>
       <div class="tag tag-orange">Postman · Manual API Reverse Engineering</div>
       <div class="tag" style="background:rgba(0,212,255,0.12);border:1px solid rgba(0,212,255,0.35);color:#7de8ff;">This PPT · AI-Generated in &lt; 3 min</div>
     </div>
@@ -777,12 +889,12 @@
 <nav class="nav">
   <button id="prevBtn" onclick="changeSlide(-1)" disabled>&#8592;</button>
   <div class="dots" id="dots"></div>
-  <span class="slide-counter" id="counter">1 / 16</span>
+  <span class="slide-counter" id="counter">1 / 18</span>
   <button id="nextBtn" onclick="changeSlide(1)">&#8594;</button>
 </nav>
 
 <script>
-  const TOTAL = 16;
+  const TOTAL = 18;
   let current = 1;
 
   const dotsEl = document.getElementById('dots');
